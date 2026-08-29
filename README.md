@@ -5,7 +5,6 @@
 ## 快速开始
 
 ```bash
-cd /data/sd/xiaoxuanfeng
 npm install
 npm run dev
 ```
@@ -13,7 +12,7 @@ npm run dev
 ## 项目结构
 
 ```
-data/sd/xiaoxuanfeng/
+xiaoxuanfeng/
 ├── index.html
 ├── package.json
 ├── vite.config.ts
