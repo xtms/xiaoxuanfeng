@@ -469,6 +469,27 @@ pre code {
 }
 
 /* ============================================================
+   Navigation loading bar
+   ============================================================ */
+.nav-loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient);
+  z-index: 999;
+  animation: navLoading 1.5s ease-in-out infinite;
+  border-radius: 0 2px 2px 0;
+}
+@keyframes navLoading {
+  0% { transform: translateX(-100%); }
+  40% { transform: translateX(0%); }
+  60% { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ============================================================
    Back to top
    ============================================================ */
 .back-to-top {

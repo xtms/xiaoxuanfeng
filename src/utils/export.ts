@@ -25,10 +25,6 @@ function prepareContent(): HTMLElement | null {
   // 移除 Mermaid 的交互按钮（箭头等）
   clone.querySelectorAll('.mermaid svg').forEach((svg) => {
     svg.removeAttribute('style');
-    // 移除交互元素
-    svg.querySelectorAll('g[class*="edgeLabel"], g[class*="arrowheadPath"]').forEach((el) => {
-      // 保留这些，它们是有意义的
-    });
   });
 
   // 移除空链接
@@ -173,9 +169,9 @@ export async function exportPdf() {
 
   try {
     const opt = {
-      margin: [10, 10, 10, 10],
+      margin: [10, 10, 10, 10] as [number, number, number, number],
       filename: getFileName('pdf'),
-      image: { type: 'jpeg', quality: 0.95 },
+      image: { type: 'jpeg' as const, quality: 0.95 },
       html2canvas: {
         scale: 2,
         useCORS: true,

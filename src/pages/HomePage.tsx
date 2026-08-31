@@ -117,7 +117,7 @@ export function HomePage() {
       {/* Learning path */}
       <h2 style={{ border: 'none', margin: '40px 0 4px', fontSize: '1.3rem' }}>学习路径</h2>
       <p className="text-sm" style={{ color: 'var(--text3)', margin: '0 0 16px' }}>
-        从入门到精通的推荐学习顺序
+        从入门到精通的推荐学习顺序，覆盖全部 11 个页面
       </p>
       <div className="glass-card" style={{ padding: '16px 0' }}>
         <div className="learning-path">
@@ -131,36 +131,64 @@ export function HomePage() {
           <div className="path-step">
             <div className="path-step-num">2</div>
             <div className="path-step-content">
-              <h4><Link to="/vllm">深入 vLLM</Link></h4>
-              <p>学习 PagedAttention、Scheduler、BlockManager 等核心模块</p>
+              <h4><Link to="/attention-close-reading">Attention 机制精读</Link></h4>
+              <p>深入理解 Transformer 论文，掌握 Attention 原理，这是所有推理框架的理论基础</p>
             </div>
           </div>
           <div className="path-step">
             <div className="path-step-num">3</div>
             <div className="path-step-content">
-              <h4><Link to="/vllm-ascend">理解 vLLM-Ascend 硬件插件</Link></h4>
-              <p>学习如何通过插件化接口将推理框架适配昇腾 NPU</p>
+              <h4><Link to="/vllm-quickstart">vLLM 快速入门</Link></h4>
+              <p>动手实践，从安装到运行第一个推理任务，快速体验 vLLM</p>
             </div>
           </div>
           <div className="path-step">
             <div className="path-step-num">4</div>
             <div className="path-step-content">
-              <h4><Link to="/nano-vllm">动手实践 nano-vLLM-NPU</Link></h4>
-              <p>通过精简代码库（~1,900 行）深入理解推理全流程</p>
+              <h4><Link to="/vllm">深入 vLLM</Link> + <Link to="/vllm-arch">vLLM 架构详解</Link></h4>
+              <p>学习 PagedAttention、Scheduler、BlockManager 等核心模块及架构设计</p>
             </div>
           </div>
           <div className="path-step">
             <div className="path-step-num">5</div>
             <div className="path-step-content">
-              <h4><Link to="/sglang">探索 SGLang</Link></h4>
-              <p>学习 RadixAttention 和 Rust 零开销调度器的创新设计</p>
+              <h4><Link to="/vllm-ascend">vLLM-Ascend 硬件插件</Link></h4>
+              <p>理解如何通过插件化接口将推理框架适配华为昇腾 NPU</p>
             </div>
           </div>
           <div className="path-step">
             <div className="path-step-num">6</div>
             <div className="path-step-content">
+              <h4><Link to="/nano-vllm">nano-vLLM-NPU</Link></h4>
+              <p>通过精简代码库（~1,900 行）动手实践，深入理解推理全流程</p>
+            </div>
+          </div>
+          <div className="path-step">
+            <div className="path-step-num">7</div>
+            <div className="path-step-content">
+              <h4><Link to="/sglang">探索 SGLang</Link></h4>
+              <p>学习 RadixAttention 前缀缓存和 Rust 零开销调度器的创新设计</p>
+            </div>
+          </div>
+          <div className="path-step">
+            <div className="path-step-num">8</div>
+            <div className="path-step-content">
               <h4><Link to="/comparison">框架横向对比</Link></h4>
               <p>性能、架构、适用场景的全面对比，选择最适合的方案</p>
+            </div>
+          </div>
+          <div className="path-step">
+            <div className="path-step-num">9</div>
+            <div className="path-step-content">
+              <h4><Link to="/attention-en">Attention 论文原文</Link></h4>
+              <p>阅读英文原版 "Attention Is All You Need"，配合精读加深理解</p>
+            </div>
+          </div>
+          <div className="path-step">
+            <div className="path-step-num">10</div>
+            <div className="path-step-content">
+              <h4><Link to="/infratech">InfraTech 基础设施</Link></h4>
+              <p>了解 AI Infra 底层技术栈，涵盖训练推理框架、性能加速、深度学习与基础硬件</p>
             </div>
           </div>
         </div>

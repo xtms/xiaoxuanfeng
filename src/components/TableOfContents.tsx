@@ -39,15 +39,6 @@ export function TableOfContents() {
         number = `${h2Counter}.${h3Counter}`;
       }
 
-      // Inject number prefix into heading if not already present
-      if (!h.querySelector('[data-toc-number]')) {
-        const span = document.createElement('span');
-        span.setAttribute('data-toc-number', '');
-        span.style.cssText = 'color:var(--text3);font-weight:400;margin-right:0.5em;';
-        span.textContent = number + '. ';
-        h.insertBefore(span, h.firstChild);
-      }
-
       tocItems.push({
         id,
         number,

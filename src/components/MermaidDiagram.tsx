@@ -1,29 +1,37 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import mermaid from 'mermaid';
-
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'base',
-  themeVariables: {
-    primaryColor: '#eef2ff',
-    primaryTextColor: '#1e293b',
-    primaryBorderColor: '#4f46e5',
-    lineColor: '#6366f1',
-    secondaryColor: '#f1f5f9',
-    tertiaryColor: '#f8fafc',
-    background: '#ffffff',
-    mainBkg: '#f1f5f9',
-    nodeBorder: '#e2e8f0',
-    clusterBkg: '#f8fafc',
-    clusterBorder: '#e2e8f0',
-    titleColor: '#1e293b',
-    edgeLabelBackground: '#ffffff',
-  },
-});
 
 interface Props {
   chart: string;
   className?: string;
+}
+
+let mermaidInitialized = false;
+
+async function loadMermaid() {
+  const mermaid = (await import('mermaid')).default;
+  if (!mermaidInitialized) {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#eef2ff',
+        primaryTextColor: '#1e293b',
+        primaryBorderColor: '#4f46e5',
+        lineColor: '#6366f1',
+        secondaryColor: '#f1f5f9',
+        tertiaryColor: '#f8fafc',
+        background: '#ffffff',
+        mainBkg: '#f1f5f9',
+        nodeBorder: '#e2e8f0',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#e2e8f0',
+        titleColor: '#1e293b',
+        edgeLabelBackground: '#ffffff',
+      },
+    });
+    mermaidInitialized = true;
+  }
+  return mermaid;
 }
 
 export function MermaidDiagram({ chart, className }: Props) {
@@ -34,22 +42,44 @@ export function MermaidDiagram({ chart, className }: Props) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!containerRef.current) return;
-    mermaid.render(id.current, chart).then(({ svg }) => {
+    let cancelled = false;
+
+    setLoading(true);
+
+    loadMermaid().then((mermaid) => {
+      if (cancelled) return;
+      return mermaid.render(id.current, chart);
+    }).then((result) => {
+      if (cancelled || !result) return;
       if (svgWrapperRef.current) {
-        svgWrapperRef.current.innerHTML = svg;
+        // Use a document fragment to avoid interfering with React's virtual DOM
+        const fragment = document.createRange().createContextualFragment(result.svg);
+        // Clear any existing content first
+        while (svgWrapperRef.current.firstChild) {
+          svgWrapperRef.current.removeChild(svgWrapperRef.current.firstChild);
+        }
+        svgWrapperRef.current.appendChild(fragment);
         const svgEl = svgWrapperRef.current.querySelector('svg');
         if (svgEl) {
           svgEl.style.maxWidth = 'none';
           svgEl.style.height = 'auto';
         }
       }
-      // Reset zoom/pan on new chart
       setScale(1);
       setPan({ x: 0, y: 0 });
-    }).catch(console.error);
+      setLoading(false);
+    }).catch((err) => {
+      if (!cancelled) {
+        console.error('Mermaid render error:', err);
+        setLoading(false);
+      }
+    });
+
+    return () => { cancelled = true; };
   }, [chart]);
 
   const applyTransform = useCallback(() => {
@@ -76,7 +106,7 @@ export function MermaidDiagram({ chart, className }: Props) {
     if (scale <= 1) return;
     dragging.current = true;
     lastPos.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-    e.currentTarget.style.cursor = 'grabbing';
+    (e.currentTarget as HTMLElement).style.cursor = 'grabbing';
   }, [scale, pan]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -86,7 +116,7 @@ export function MermaidDiagram({ chart, className }: Props) {
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     dragging.current = false;
-    e.currentTarget.style.cursor = scale > 1 ? 'grab' : 'default';
+    (e.currentTarget as HTMLElement).style.cursor = scale > 1 ? 'grab' : 'default';
   }, [scale]);
 
   const zoomIn = () => setScale((s) => Math.min(5, s + 0.2));
@@ -125,6 +155,14 @@ export function MermaidDiagram({ chart, className }: Props) {
         }}
       >
         <div ref={svgWrapperRef} style={{ display: 'inline-block', minWidth: '100%' }} />
+        {loading && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '40px 0', color: 'var(--text3)', fontSize: '0.88rem',
+          }}>
+            ⏳ 加载图表...
+          </div>
+        )}
       </div>
 
       <style>{`

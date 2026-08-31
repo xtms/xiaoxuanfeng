@@ -270,9 +270,7 @@ sequenceDiagram
       </table>
 
       <Callout type="tip">
-        <strong>学习路径建议：</strong>先阅读 <strong>vLLM</strong> 理解 PagedAttention 和 Continuous Batching 的核心概念（所有推理框架的基石），
-        再阅读 <strong>nano-vLLM</strong> 通过精简代码深入理解 Chunked Prefill 边界和 HashChain 前缀缓存，
-        然后阅读 <strong>SGLang</strong> 了解 RadixAttention 的创新，最后对比 <strong>vLLM-Ascend</strong> 理解 NPU 适配的插件化思路。
+        <strong>学习路径建议：</strong>先阅读 <strong>Attention 机制精读</strong> 理解 Transformer 理论基础，再通过 <strong>vLLM 快速入门</strong> 动手实践，然后阅读 <strong>vLLM</strong> 和 <strong>vLLM 架构详解</strong> 掌握 PagedAttention 与 Continuous Batching 核心概念，再阅读 <strong>nano-vLLM</strong> 通过精简代码深入理解 Chunked Prefill 边界和 HashChain 前缀缓存，然后阅读 <strong>SGLang</strong> 了解 RadixAttention 的创新，对比 <strong>vLLM-Ascend</strong> 理解 NPU 适配的插件化思路，最后通过 <strong>框架对比</strong> 和 <strong>InfraTech</strong> 完成知识体系的闭环。
       </Callout>
 
       <ResourceTable resources={[
