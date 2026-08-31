@@ -1,5 +1,5 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
-import { CodeBlock, Callout, ExternalLink } from '../components/CodeBlock';
+import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
 
 export function NanoVLLMPage() {
   return (
@@ -20,26 +20,26 @@ export function NanoVLLMPage() {
       <table>
         <thead><tr><th>模块</th><th>文件</th><th>行数</th><th>职责</th></tr></thead>
         <tbody>
-          <tr><td rowSpan={5}><strong>引擎层</strong></td><td><code>engine/llm_engine.py</code></td><td>~150</td><td>主引擎：add_request / step / generate，同步阻塞循环</td></tr>
-          <tr><td><code>engine/scheduler.py</code></td><td>~180</td><td>两阶段调度：prefill 优先 + 头部队列 Chunked Prefill + LIFO 抢占</td></tr>
-          <tr><td><code>engine/block_manager.py</code></td><td>~120</td><td>HashChain 前缀缓存：xxhash 链式哈希 + token 二次验证</td></tr>
-          <tr><td><code>engine/sequence.py</code></td><td>~80</td><td>序列状态机：WAITING / RUNNING / FINISHED，双游标计数</td></tr>
-          <tr><td><code>engine/model_runner.py</code></td><td>~280</td><td>模型执行器：TP 多进程 + SharedMemory IPC + CUDA Graph 捕获</td></tr>
-          <tr><td rowSpan={7}><strong>层</strong></td><td><code>layers/attention.py</code></td><td>~200</td><td>注意力：flash-attn 优先，SDPA fallback（纯 PyTorch，NPU 友好）</td></tr>
-          <tr><td><code>layers/linear.py</code></td><td>~156</td><td>Megatron 风格 TP 线性层：Column/Row/QKV/MergedColumn/Replicated</td></tr>
-          <tr><td><code>layers/sampler.py</code></td><td>~13</td><td>Gumbel-max 采样：仅 temperature，禁用 greedy</td></tr>
-          <tr><td><code>layers/rotary_embedding.py</code></td><td>~60</td><td>RoPE 位置编码：仅 NeoX 风格，断言 rotary_dim==head_size</td></tr>
-          <tr><td><code>layers/layernorm.py</code></td><td>~51</td><td>RMSNorm + 融合残差 add_rms_forward</td></tr>
-          <tr><td><code>layers/activation.py</code></td><td>~12</td><td>SiluAndMul：SiLU 门控激活</td></tr>
-          <tr><td><code>layers/embed_head.py</code></td><td>~66</td><td>VocabParallelEmbedding + ParallelLMHead</td></tr>
-          <tr><td rowSpan={1}><strong>模型</strong></td><td><code>models/qwen3.py</code></td><td>~216</td><td>Qwen3ForCausalLM：仅支持 Qwen3 稠密模型</td></tr>
-          <tr><td rowSpan={4}><strong>工具</strong></td><td><code>utils/device.py</code></td><td>~98</td><td>设备抽象：cuda/npu 自由函数分发，无类/插件体系</td></tr>
-          <tr><td><code>utils/compile.py</code></td><td>~32</td><td>optional_compile：NPU 降级为 no-op，CUDA 使用 torch.compile</td></tr>
-          <tr><td><code>utils/context.py</code></td><td>~20</td><td>Context 全局单例：传递 attention metadata</td></tr>
-          <tr><td><code>utils/loader.py</code></td><td>~28</td><td>权重加载器：仅本地 safetensors，packed_modules_mapping 融合</td></tr>
-          <tr><td rowSpan={2}><strong>入口</strong></td><td><code>llm.py</code></td><td>~20</td><td>LLM 类：LLMEngine 别名</td></tr>
-          <tr><td><code>config.py</code></td><td>~40</td><td>Config dataclass：13 个扁平字段，device_id 支持 int|list</td></tr>
-          <tr><td><strong>API</strong></td><td><code>v1/run_api_server.py</code></td><td>~211</td><td>FastAPI 4 路由：同步阻塞，无流式，无跨请求 batching</td></tr>
+          <tr><td rowSpan={5}><strong>引擎层</strong></td><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/llm_engine.py" target="_blank" rel="noreferrer"><code>engine/llm_engine.py</code></a></td><td>~150</td><td>主引擎：add_request / step / generate，同步阻塞循环</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/scheduler.py" target="_blank" rel="noreferrer"><code>engine/scheduler.py</code></a></td><td>~180</td><td>两阶段调度：prefill 优先 + 头部队列 Chunked Prefill + LIFO 抢占</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/block_manager.py" target="_blank" rel="noreferrer"><code>engine/block_manager.py</code></a></td><td>~120</td><td>HashChain 前缀缓存：xxhash 链式哈希 + token 二次验证</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/sequence.py" target="_blank" rel="noreferrer"><code>engine/sequence.py</code></a></td><td>~80</td><td>序列状态机：WAITING / RUNNING / FINISHED，双游标计数</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/model_runner.py" target="_blank" rel="noreferrer"><code>engine/model_runner.py</code></a></td><td>~280</td><td>模型执行器：TP 多进程 + SharedMemory IPC + CUDA Graph 捕获</td></tr>
+          <tr><td rowSpan={7}><strong>层</strong></td><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/layers/attention.py" target="_blank" rel="noreferrer"><code>layers/attention.py</code></a></td><td>~200</td><td>注意力：flash-attn 优先，SDPA fallback（纯 PyTorch，NPU 友好）</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/layers/linear.py" target="_blank" rel="noreferrer"><code>layers/linear.py</code></a></td><td>~156</td><td>Megatron 风格 TP 线性层：Column/Row/QKV/MergedColumn/Replicated</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/layers/sampler.py" target="_blank" rel="noreferrer"><code>layers/sampler.py</code></a></td><td>~13</td><td>Gumbel-max 采样：仅 temperature，禁用 greedy</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/layers/rotary_embedding.py" target="_blank" rel="noreferrer"><code>layers/rotary_embedding.py</code></a></td><td>~60</td><td>RoPE 位置编码：仅 NeoX 风格，断言 rotary_dim==head_size</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/layers/layernorm.py" target="_blank" rel="noreferrer"><code>layers/layernorm.py</code></a></td><td>~51</td><td>RMSNorm + 融合残差 add_rms_forward</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/layers/activation.py" target="_blank" rel="noreferrer"><code>layers/activation.py</code></a></td><td>~12</td><td>SiluAndMul：SiLU 门控激活</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/layers/embed_head.py" target="_blank" rel="noreferrer"><code>layers/embed_head.py</code></a></td><td>~66</td><td>VocabParallelEmbedding + ParallelLMHead</td></tr>
+          <tr><td rowSpan={1}><strong>模型</strong></td><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/models/qwen3.py" target="_blank" rel="noreferrer"><code>models/qwen3.py</code></a></td><td>~216</td><td>Qwen3ForCausalLM：仅支持 Qwen3 稠密模型</td></tr>
+          <tr><td rowSpan={4}><strong>工具</strong></td><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/utils/device.py" target="_blank" rel="noreferrer"><code>utils/device.py</code></a></td><td>~98</td><td>设备抽象：cuda/npu 自由函数分发，无类/插件体系</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/utils/compile.py" target="_blank" rel="noreferrer"><code>utils/compile.py</code></a></td><td>~32</td><td>optional_compile：NPU 降级为 no-op，CUDA 使用 torch.compile</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/utils/context.py" target="_blank" rel="noreferrer"><code>utils/context.py</code></a></td><td>~20</td><td>Context 全局单例：传递 attention metadata</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/utils/loader.py" target="_blank" rel="noreferrer"><code>utils/loader.py</code></a></td><td>~28</td><td>权重加载器：仅本地 safetensors，packed_modules_mapping 融合</td></tr>
+          <tr><td rowSpan={2}><strong>入口</strong></td><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/llm.py" target="_blank" rel="noreferrer"><code>llm.py</code></a></td><td>~20</td><td>LLM 类：LLMEngine 别名</td></tr>
+          <tr><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/config.py" target="_blank" rel="noreferrer"><code>config.py</code></a></td><td>~40</td><td>Config dataclass：13 个扁平字段，device_id 支持 int|list</td></tr>
+          <tr><td><strong>API</strong></td><td><a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/v1/run_api_server.py" target="_blank" rel="noreferrer"><code>v1/run_api_server.py</code></a></td><td>~211</td><td>FastAPI 4 路由：同步阻塞，无流式，无跨请求 batching</td></tr>
         </tbody>
       </table>
 
@@ -285,6 +285,7 @@ flowchart LR
     def deallocate(self, seq: Sequence):
         """逆序遍历 block_table，ref_count-- 到 0 时归还 free 队列"""
         ...`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/block_manager.py" target="_blank" rel="noreferrer">engine/block_manager.py</a></div>
 
       <h3>前缀缓存对比</h3>
       <table>
@@ -356,6 +357,7 @@ module.v_cache = kv_cache[1, layer_id]  # V cache
 
 # Slot mapping: block_idx * block_size + offset, -1 表示无效
 slot_mapping = block_table * block_size + offset`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/model_runner.py" target="_blank" rel="noreferrer">engine/model_runner.py</a></div>
 
       <h3>CUDA Graph 捕获</h3>
       <p>
@@ -435,6 +437,7 @@ def optional_compile(fn):
     """NPU 降级为 no-op，CUDA 使用 torch.compile"""
     if torch_npu_available: return fn  # Triton inductor 在 NPU 上不稳定
     return torch.compile(fn)`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/utils/device.py" target="_blank" rel="noreferrer">utils/device.py</a></div>
 
       <Callout type="info">
         <strong>对比上游 vLLM：</strong>vLLM 有 8 个模块的平台抽象（Platform 基类 + PlatformEnum + 具体平台类 + 插件自动检测），
@@ -457,6 +460,7 @@ def optional_compile(fn):
             .div(torch.empty_like(logits).exponential_()),  # Gumbel 噪声
             dim=-1
         )`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/layers/sampler.py" target="_blank" rel="noreferrer">layers/sampler.py</a></div>
 
       <Callout type="info">
         <strong>数学等价性：</strong>nano 的 Gumbel-max 与 vLLM 的 <code>forward_native</code> 随机路径核心数学等价
@@ -539,6 +543,7 @@ def optional_compile(fn):
 remaining = self.max_num_batched_tokens - num_batched_tokens
 if remaining < num_tokens and scheduled_seqs:
     break  # 仅队首(long prompt)可分块，后续序列必须整批放入`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/scheduler.py" target="_blank" rel="noreferrer">engine/scheduler.py</a></div>
       <Callout type="info">
         <strong>推论：</strong>batch 的组成只能是"队首(可能分块) + 若干整批放得下的短序列"，绝不允许两个分块序列共存于同一 batch。
         这是性能与实现简洁性的取舍——避免多序列同时跨步带来的复杂 KV 对齐。
@@ -551,6 +556,7 @@ start = seq.num_cached_tokens        # 已"落账"的 token 数
 seqlen_q = seq.num_scheduled_tokens  # 本步要算的 token 数
 end = start + seqlen_q
 seqlen_k = end  # 注意力的 K/V 长度 = end（最核心不变式！）`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/model_runner.py" target="_blank" rel="noreferrer">engine/model_runner.py</a></div>
 
       <Callout type="warning">
         <strong>seqlen_k = end 是生死线：</strong>注意力只能覆盖 <code>[0, end)</code>——即已写入 cache 的全部 token。
@@ -572,6 +578,7 @@ for i in range(start_block, end_block):
     else:
         slot_end = ... + end - i * self.block_size  # 末块: 到 chunk 终点
     slot_mapping.extend(range(slot_start, slot_end))`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/model_runner.py" target="_blank" rel="noreferrer">engine/model_runner.py</a></div>
       <p><strong>不变式：</strong><code>slot_mapping</code> 长度恰为 <code>seqlen_q</code>，与 <code>input_ids</code> 逐 token 对齐。</p>
 
       <h4>4. 前缀缓存边界 (Prefix-Cache Boundary)</h4>
@@ -582,6 +589,7 @@ for i in range(seq.num_blocks - 1):  # 注意: num_blocks - 1, 不含末块!
     h = self.compute_hash(token_ids, h)
     if block_id == -1 or blocks[block_id].token_ids != token_ids:
         break  # 链式哈希断裂 → 停止探测`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/block_manager.py" target="_blank" rel="noreferrer">engine/block_manager.py</a></div>
       <p><strong>两个连锁不变式：</strong></p>
       <ol>
         <li><strong>num_cached_blocks ≤ num_blocks - 1</strong>：无论 prefix cache 多充分，末块永远不命中</li>
@@ -610,6 +618,7 @@ def hash_blocks(self, seq):
     for i in range(start, end):
         # 仅对 [start, end) 内的完整块哈希
         ...`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/block_manager.py" target="_blank" rel="noreferrer">engine/block_manager.py</a></div>
       <p><strong>decode 块填满时刻的"一步滞后"：</strong>块 k 在步骤 S 写入 KV 并 append 进 token_ids，<strong>同一步骤 S 的 hash_blocks 中被哈希</strong>——"写 KV"与"登记哈希"在同一 postprocess 内完成，无窗口期不一致。</p>
 
       <h4>6. 状态边界 (State Boundary)</h4>
@@ -679,6 +688,7 @@ for seq, token_id in zip(seqs, token_ids):
     seq.num_cached_tokens += seq.num_scheduled_tokens  # 2. 再推进
     ...
     seq.append_token(token_id)                   # 3. 最后追加 token`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/xtms/nano-vllm-npu/blob/main/nanovllm/engine/scheduler.py" target="_blank" rel="noreferrer">engine/scheduler.py</a></div>
       <ul>
         <li><strong>start/end</strong> 用追加前的 num_cached_tokens，整除意味着只哈希满块（I2），partial 尾块被排除</li>
         <li><strong>链前缀</strong>取 <code>blocks[block_table[start-1]].hash</code>：该块是已完成的满块，其 hash 必已设定（I5）</li>
@@ -816,10 +826,16 @@ sequenceDiagram
         NPU 上的算子融合和图编译对性能至关重要。
       </Callout>
 
-      <div className="flex gap-2 mt-6">
-        <ExternalLink href="https://github.com/xtms/nano-vllm-npu" label="nano-vLLM-NPU GitHub" />
-        <ExternalLink href="https://www.hiascend.com" label="昇腾社区" />
-      </div>
+      <ResourceTable resources={[
+          { name: 'nano-vLLM-NPU GitHub', url: 'https://github.com/xtms/nano-vllm-npu', desc: '精简教育推理引擎源码，约 2,428 行，适合学习推理引擎核心原理' },
+          { name: '昇腾社区', url: 'https://www.hiascend.com', desc: '华为昇腾 AI 官方社区，CANN 软件栈与 Ascend NPU 开发文档' },
+          { name: 'Transformer 原始论文', url: 'https://arxiv.org/abs/1706.03762', desc: '"Attention Is All You Need"，Attention 机制的奠基之作' },
+          { name: 'The Illustrated Transformer', url: 'https://jalammar.github.io/illustrated-transformer/', desc: 'Jay Alammar 经典可视化图解，直观理解 Q/K/V 与多头注意力' },
+          { name: 'The Annotated Transformer', url: 'https://nlp.seas.harvard.edu/2018/04/03/attention.html', desc: 'Harvard NLP 逐行注释 PyTorch 实现，代码与公式一一对应' },
+          { name: 'minGPT', url: 'https://github.com/karpathy/minGPT', desc: 'Andrej Karpathy 精简 GPT 教学实现，约 300 行，适合逐行精读' },
+          { name: 'nanoGPT', url: 'https://github.com/karpathy/nanoGPT', desc: '极简训练+推理一体实现，与 nano-vLLM 同为精简教学项目' },
+          { name: 'HuggingFace Transformers', url: 'https://github.com/huggingface/transformers', desc: '最流行的生产级 Transformer 库，BERT/GPT/Llama 等完整实现' },
+        ]} />
     </div>
   );
 }

@@ -40,6 +40,9 @@ export function Layout() {
             <a href="https://github.com/vllm-project/vllm-ascend" target="_blank" rel="noreferrer" className="sidebar-link text-xs">🔗 vLLM-Ascend</a>
             <a href="https://github.com/xtms/nano-vllm-npu" target="_blank" rel="noreferrer" className="sidebar-link text-xs">🔗 nano-vLLM</a>
             <a href="https://github.com/sgl-project/sglang" target="_blank" rel="noreferrer" className="sidebar-link text-xs">🔗 SGLang GitHub</a>
+            <a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noreferrer" className="sidebar-link text-xs">📄 Transformer 论文</a>
+            <a href="https://jalammar.github.io/illustrated-transformer/" target="_blank" rel="noreferrer" className="sidebar-link text-xs">🖼️ Illustrated Transformer</a>
+            <a href="https://github.com/karpathy/nanoGPT" target="_blank" rel="noreferrer" className="sidebar-link text-xs">💻 nanoGPT</a>
           </div>
         </div>
       </aside>

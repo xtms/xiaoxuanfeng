@@ -1,4 +1,4 @@
-import { CodeBlock, Callout, ExternalLink } from '../components/CodeBlock';
+import { CodeBlock, Callout, ResourceTable } from '../components/CodeBlock';
 import { MermaidDiagram } from '../components/MermaidDiagram';
 
 export function AttentionCloseReadingPage() {
@@ -688,11 +688,21 @@ cos(pos + k) = cos(pos)·cos(k) - sin(pos)·sin(k)
         <strong>学习建议：</strong>我认为，对于深度学习的初学者，不管是研究什么领域，都应该仔细学习 Transformer。在学 Transformer 之前，最好先了解一下 RNN 和经典的 encoder-decoder 架构，再学习注意力模型。有了这些基础，读 Transformer 论文就会顺利很多。读论文时，最重要的是看懂注意力公式的原理，再看懂自注意力和多头注意力，最后看一看位置编码。其他一些和机器翻译任务相关的设计可以不用那么关注。
       </Callout>
 
-      <div className="flex gap-2 mt-6">
-        <ExternalLink href="https://arxiv.org/abs/1706.03762" label="arXiv 论文" />
-        <ExternalLink href="https://zhouyifan.net/2022/11/12/20220925-Transformer/" label="原文链接 (周弈帆)" />
-        <ExternalLink href="https://github.com/tensorflow/tensor2tensor" label="官方代码 (tensor2tensor)" />
-      </div>
+      <ResourceTable resources={[
+          { name: 'arXiv 论文', url: 'https://arxiv.org/abs/1706.03762', desc: '"Attention Is All You Need" 原始论文，Transformer 架构的奠基之作' },
+          { name: '原文链接 (周弈帆)', url: 'https://zhouyifan.net/2022/11/12/20220925-Transformer/', desc: '中文逐段精读原文，从背景知识到数学公式的完整讲解' },
+          { name: '官方代码 (tensor2tensor)', url: 'https://github.com/tensorflow/tensor2tensor', desc: 'Google 官方 TensorFlow 实现，包含训练与推理完整流程' },
+          { name: 'The Illustrated Transformer', url: 'https://jalammar.github.io/illustrated-transformer/', desc: 'Jay Alammar 的经典可视化图解，直观理解 Q/K/V 与多头注意力' },
+          { name: 'The Annotated Transformer', url: 'https://nlp.seas.harvard.edu/2018/04/03/attention.html', desc: 'Harvard NLP 逐行注释 PyTorch 实现，代码与公式一一对应' },
+          { name: 'Attention? Attention!', url: 'https://lilianweng.github.io/posts/2018-06-24-attention/', desc: 'Lilian Weng 注意力机制综述，从 Seq2Seq 到 Self-Attention 的演进' },
+          { name: 'The Transformer Family v2.0', url: 'https://lilianweng.github.io/posts/2023-01-27-the-transformer-family-v2/', desc: 'Transformer 变体大全，涵盖 GPT/BERT/T5/稀疏注意力等改进' },
+          { name: 'minGPT', url: 'https://github.com/karpathy/minGPT', desc: 'Andrej Karpathy 的精简 GPT 教学实现，约 300 行，适合逐行精读' },
+          { name: 'nanoGPT', url: 'https://github.com/karpathy/nanoGPT', desc: '极简训练+推理一体实现，可直接跑 Shakespeare 级别的小规模训练' },
+          { name: 'x-transformers', url: 'https://github.com/lucidrains/x-transformers', desc: 'lucidrains 的各种 Transformer 变体实现，覆盖 Flash/Linear/稀疏 Attention' },
+          { name: 'HuggingFace Transformers', url: 'https://github.com/huggingface/transformers', desc: '最流行的生产级 Transformer 库，BERT/GPT/Llama 等完整实现' },
+          { name: 'PyTorch nn.Transformer 源码', url: 'https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/transformer.py', desc: 'PyTorch 官方 nn.MultiheadAttention 与 nn.Transformer 实现' },
+          { name: 'Harvard annotated-transformer', url: 'https://github.com/harvardnlp/annotated-transformer', desc: '与 The Annotated Transformer 教程配套的完整代码仓库' },
+        ]} />
     </div>
   );
 }

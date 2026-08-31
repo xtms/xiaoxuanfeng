@@ -1,5 +1,5 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
-import { CodeBlock, Callout, ExternalLink } from '../components/CodeBlock';
+import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
 
 export function VLLMAscendPage() {
   return (
@@ -83,6 +83,7 @@ flowchart TB
 csrc/                    # C++/Ascend C 内核
 cmake/                   # 构建配置
 Dockerfile*              # 多硬件变体镜像`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/vllm-project/vllm-ascend" target="_blank" rel="noreferrer">github.com/vllm-project/vllm-ascend</a></div>
 
       <h2>🔄 请求处理流程</h2>
       <MermaidDiagram chart={`
@@ -138,11 +139,14 @@ sequenceDiagram
         使用时必须确保 vLLM 和 vLLM-Ascend 版本一致。
       </Callout>
 
-      <div className="flex gap-2 mt-6">
-        <ExternalLink href="https://github.com/vllm-project/vllm-ascend" label="vLLM-Ascend GitHub" />
-        <ExternalLink href="https://www.hiascend.com" label="昇腾社区" />
-        <ExternalLink href="https://quay.io/ascend/vllm-ascend" label="Docker 镜像" />
-      </div>
+      <ResourceTable resources={[
+          { name: 'vLLM-Ascend GitHub', url: 'https://github.com/vllm-project/vllm-ascend', desc: 'vLLM-Ascend 官方仓库，华为昇腾 NPU 硬件可插拔插件' },
+          { name: '昇腾社区', url: 'https://www.hiascend.com', desc: '华为昇腾 AI 官方社区，CANN 软件栈与 Ascend NPU 开发文档' },
+          { name: 'Docker 镜像', url: 'https://quay.io/ascend/vllm-ascend', desc: 'vLLM-Ascend 官方 Docker 镜像，预装 CANN 与 vLLM 环境' },
+          { name: 'Transformer 原始论文', url: 'https://arxiv.org/abs/1706.03762', desc: '"Attention Is All You Need"，Attention 机制的奠基之作' },
+          { name: 'The Illustrated Transformer', url: 'https://jalammar.github.io/illustrated-transformer/', desc: 'Jay Alammar 经典可视化图解，直观理解 Q/K/V 与多头注意力' },
+          { name: 'nanoGPT', url: 'https://github.com/karpathy/nanoGPT', desc: 'Andrej Karpathy 极简 GPT 训练/推理实现，快速理解完整流程' },
+        ]} />
     </div>
   );
 }

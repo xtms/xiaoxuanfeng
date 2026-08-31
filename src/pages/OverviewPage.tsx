@@ -1,5 +1,5 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
-import { CodeBlock, Callout, ExternalLink } from '../components/CodeBlock';
+import { Callout, ResourceTable } from '../components/CodeBlock';
 
 export function OverviewPage() {
   return (
@@ -272,11 +272,16 @@ sequenceDiagram
         然后阅读 <strong>SGLang</strong> 了解 RadixAttention 的创新，最后对比 <strong>vLLM-Ascend</strong> 理解 NPU 适配的插件化思路。
       </Callout>
 
-      <div className="flex gap-2 mt-6">
-        <ExternalLink href="https://arxiv.org/abs/2309.06180" label="PagedAttention 论文" />
-        <ExternalLink href="https://docs.vllm.ai" label="vLLM 文档" />
-        <ExternalLink href="https://docs.sglang.io" label="SGLang 文档" />
-      </div>
+      <ResourceTable resources={[
+          { name: 'PagedAttention 论文 (SOSP 2023)', url: 'https://arxiv.org/abs/2309.06180', desc: 'PagedAttention 原始论文，KV Cache 分页管理的理论基础' },
+          { name: 'vLLM 文档', url: 'https://docs.vllm.ai', desc: 'vLLM 官方文档，PagedAttention 与 Continuous Batching 的完整讲解' },
+          { name: 'SGLang 文档', url: 'https://docs.sglang.io', desc: 'SGLang 官方文档，RadixAttention 与零开销调度器的详细说明' },
+          { name: 'Transformer 原始论文', url: 'https://arxiv.org/abs/1706.03762', desc: '"Attention Is All You Need"，Attention 机制的奠基之作' },
+          { name: 'The Illustrated Transformer', url: 'https://jalammar.github.io/illustrated-transformer/', desc: 'Jay Alammar 经典可视化图解，直观理解 Q/K/V 与多头注意力' },
+          { name: 'Attention? Attention!', url: 'https://lilianweng.github.io/posts/2018-06-24-attention/', desc: 'Lilian Weng 注意力机制综述，从 Seq2Seq 到 Self-Attention 的演进' },
+          { name: 'nanoGPT', url: 'https://github.com/karpathy/nanoGPT', desc: 'Andrej Karpathy 极简 GPT 训练/推理实现，快速理解完整流程' },
+          { name: 'HuggingFace Transformers', url: 'https://github.com/huggingface/transformers', desc: '最流行的生产级 Transformer 库，BERT/GPT/Llama 等完整实现' },
+        ]} />
     </div>
   );
 }

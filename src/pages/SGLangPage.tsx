@@ -1,5 +1,5 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
-import { CodeBlock, Callout, ExternalLink } from '../components/CodeBlock';
+import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
 
 export function SGLangPage() {
   return (
@@ -120,6 +120,7 @@ sequenceDiagram
 ):
     # ~40 个 init_* / maybe_init_* 方法按序调用
     # init_memory_pools() → init_schedule_policy() → init_overlap() ...`} language="python" title="Scheduler Mixin 架构" />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/managers/scheduler.py" target="_blank" rel="noreferrer">python/sglang/srt/managers/scheduler.py</a></div>
 
       <h3>3.2 三类事件循环</h3>
       <table>
@@ -143,6 +144,7 @@ while True:
             pop_and_process()        # 处理上一个 batch 的结果
         result = run_batch(batch)   # forward_stream 上启动 GPU 计算
         result_queue.append((batch.copy(), result))`} language="python" title="Overlap 事件循环" />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/managers/scheduler.py" target="_blank" rel="noreferrer">python/sglang/srt/managers/scheduler.py</a></div>
 
       <h3>3.3 调度策略</h3>
       <table>
@@ -244,6 +246,7 @@ class RadixCache(BasePrefixCache):
     evict(num_tokens) → EvictResult   # 叶子优先 + LRU/priority
     cache_finished_req(req)           # 缓存完成的请求
     cache_unfinished_req(req)         # 缓存未完成请求`} language="python" title="RadixCache 核心数据结构" />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/managers/schedule_batch.py" target="_blank" rel="noreferrer">python/sglang/srt/managers/schedule_batch.py</a></div>
 
       <h3>4.3 内存池三级架构</h3>
       <table>
@@ -312,6 +315,7 @@ class RadixCache(BasePrefixCache):
       <CodeBlock code={`tp_size = attn_tp_size * attn_cp_size * attn_dp_size
        = moe_tp_size * moe_ep_size * moe_dp_size
 world_size = tp_size * pp_size`} language="python" title="并行策略约束公式" />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py" target="_blank" rel="noreferrer">python/sglang/srt/server_args.py</a></div>
 
       <MermaidDiagram chart={`
 flowchart LR
@@ -479,6 +483,7 @@ struct RequestBatch {
 // 多模态: POSIX shm 零拷贝，TP 广播 ~100 字节 ShmPointerMMData
 // Detokenizer: 按 Rid 分片 HashMap，无锁，增量 UTF-8
 // CPU 核心绑定: A组(API) | B组(tokenizer) | C组(detokenizer) | TM核心(intake)`} language="rust" title="Rust Server 架构" />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/sgl-project/sglang/tree/main/rust" target="_blank" rel="noreferrer">rust/</a></div>
 
       <h2>10. 模型加载与权重管理</h2>
 
@@ -666,11 +671,16 @@ flowchart LR
         5 种分离式传输后端、Rust 原生服务端实现列式 IPC 零拷贝、SGLang DSL 提供完整的 LLM 编程前端。
       </Callout>
 
-      <div className="flex gap-2 mt-6">
-        <ExternalLink href="https://github.com/sgl-project/sglang" label="SGLang GitHub" />
-        <ExternalLink href="https://docs.sglang.io" label="官方文档" />
-        <ExternalLink href="https://lmsys.org" label="LMSYS Org" />
-      </div>
+      <ResourceTable resources={[
+          { name: 'SGLang GitHub', url: 'https://github.com/sgl-project/sglang', desc: 'SGLang 官方仓库，RadixAttention 与零开销调度器的完整实现' },
+          { name: 'SGLang 官方文档', url: 'https://docs.sglang.io', desc: 'RadixAttention、分离式架构、SGLang DSL 的详细文档' },
+          { name: 'LMSYS Org', url: 'https://lmsys.org', desc: 'SGLang 背后的研究组织，大模型系统领域的顶级研究团队' },
+          { name: 'Transformer 原始论文', url: 'https://arxiv.org/abs/1706.03762', desc: '"Attention Is All You Need"，Attention 机制的奠基之作' },
+          { name: 'The Illustrated Transformer', url: 'https://jalammar.github.io/illustrated-transformer/', desc: 'Jay Alammar 经典可视化图解，直观理解 Q/K/V 与多头注意力' },
+          { name: 'Attention? Attention!', url: 'https://lilianweng.github.io/posts/2018-06-24-attention/', desc: 'Lilian Weng 注意力机制综述，从 Seq2Seq 到 Self-Attention 的演进' },
+          { name: 'nanoGPT', url: 'https://github.com/karpathy/nanoGPT', desc: 'Andrej Karpathy 极简 GPT 训练/推理实现，快速理解完整流程' },
+          { name: 'HuggingFace Transformers', url: 'https://github.com/huggingface/transformers', desc: '最流行的生产级 Transformer 库，BERT/GPT/Llama 等完整实现' },
+        ]} />
     </div>
   );
 }

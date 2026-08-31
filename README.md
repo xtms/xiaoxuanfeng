@@ -118,6 +118,17 @@ xiaoxuanfeng/
 | SGLang 官方文档 | https://docs.sglang.io |
 | LMSYS Org | https://lmsys.org |
 | 昇腾社区 | https://www.hiascend.com |
+| "Attention Is All You Need" 论文 | https://arxiv.org/abs/1706.03762 |
+| The Illustrated Transformer (Jay Alammar) | https://jalammar.github.io/illustrated-transformer/ |
+| The Annotated Transformer (Harvard NLP) | https://nlp.seas.harvard.edu/2018/04/03/attention.html |
+| Attention? Attention! (Lilian Weng) | https://lilianweng.github.io/posts/2018-06-24-attention/ |
+| The Transformer Family v2.0 (Lilian Weng) | https://lilianweng.github.io/posts/2023-01-27-the-transformer-family-v2/ |
+| minGPT (Andrej Karpathy) | https://github.com/karpathy/minGPT |
+| nanoGPT (Andrej Karpathy) | https://github.com/karpathy/nanoGPT |
+| x-transformers (lucidrains) | https://github.com/lucidrains/x-transformers |
+| HuggingFace Transformers | https://github.com/huggingface/transformers |
+| PyTorch nn.Transformer 源码 | https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/transformer.py |
+| Harvard annotated-transformer 源码 | https://github.com/harvardnlp/annotated-transformer |
 
 ## 页面路由
 

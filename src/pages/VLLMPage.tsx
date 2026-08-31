@@ -1,5 +1,5 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
-import { CodeBlock, Callout, ExternalLink } from '../components/CodeBlock';
+import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
 
 export function VLLMPage() {
   return (
@@ -162,6 +162,7 @@ llm = LLM(model="Qwen/Qwen2-7B-Instruct")
 sampling_params = SamplingParams(temperature=0.8, max_tokens=256)
 outputs = llm.generate(["Hello, how are you?"], sampling_params)
 print(outputs[0].outputs[0].text)`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/vllm-project/vllm/blob/main/vllm/entrypoints/llm.py" target="_blank" rel="noreferrer">vllm/entrypoints/llm.py</a></div>
 
       <p>离线推理内部流程：</p>
       <ol>
@@ -334,6 +335,7 @@ class BlockPool:
     free_blocks(blocks)                                # 释放块
     get_cached_block(hash, group_ids) -> KVCacheBlock  # 前缀缓存查找
     get_num_free_blocks() -> int`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/block_pool.py" target="_blank" rel="noreferrer">vllm/v1/core/block_pool.py</a></div>
 
       <Callout type="tip">
         <strong>前缀缓存机制：</strong>通过 <code>BlockHashToBlockMap</code> 查找 block hash，命中 block 的 <code>ref_cnt++</code> 实现复用。
@@ -422,6 +424,7 @@ sequenceDiagram
     def remove_request(self, req_id) -> None     # 从批次移除请求
     def condense(self) -> None                   # 压缩批次 (移除空洞)
     def refresh_metadata(self) -> None           # 刷新元数据`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/worker/gpu_input_batch.py" target="_blank" rel="noreferrer">vllm/v1/worker/gpu_input_batch.py</a></div>
 
       <h3>Executor 类型选择</h3>
       <p><code>Executor.get_class()</code> 根据 <code>distributed_executor_backend</code> 选择：</p>
@@ -486,6 +489,7 @@ sequenceDiagram
 
     def compute_hash(self) -> str:         # 缓存一致性哈希
         ...`} />
+      <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/vllm-project/vllm/blob/main/vllm/config/vllm.py" target="_blank" rel="noreferrer">vllm/config/vllm.py</a></div>
 
       {/* ==================== 8. 类图 ==================== */}
       <h2>📊 核心类图</h2>
@@ -730,16 +734,16 @@ classDiagram
       {/* ==================== 9. 进程间通信 ==================== */}
       <h2>📡 进程间通信汇总</h2>
       <table>
-        <thead><tr><th>通信路径</th><th>机制</th><th>数据</th></tr></thead>
+        <thead><tr><th>通信路径</th><th>机制</th><th>数据</th><th>相关文件</th></tr></thead>
         <tbody>
-          <tr><td>AsyncLLM → EngineCore</td><td>ZMQ ROUTER → DEALER (msgpack)</td><td><code>EngineCoreRequest</code></td></tr>
-          <tr><td>EngineCore → AsyncLLM</td><td>ZMQ PUSH → PULL (msgpack)</td><td><code>EngineCoreOutputs</code></td></tr>
-          <tr><td>OutputProcessor → generate()</td><td>asyncio Event / RequestOutputCollector</td><td><code>RequestOutput</code></td></tr>
-          <tr><td>EngineCore → Scheduler</td><td>函数调用</td><td><code>SchedulerOutput</code></td></tr>
-          <tr><td>EngineCore → Executor</td><td>函数调用 (Future)</td><td><code>SchedulerOutput</code> / <code>ModelRunnerOutput</code></td></tr>
-          <tr><td>Executor → Worker</td><td><code>collective_rpc</code> (函数调用/进程消息)</td><td>方法名 + 参数</td></tr>
-          <tr><td>EngineCoreProc 内部</td><td><code>queue.Queue</code></td><td>IO 线程 ↔ busy loop</td></tr>
-          <tr><td>DP 协调 (可选)</td><td>ZMQ XPUB/XSUB + PULL</td><td>wave / stats</td></tr>
+          <tr><td>AsyncLLM → EngineCore</td><td>ZMQ ROUTER → DEALER (msgpack)</td><td><code>EngineCoreRequest</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core_client.py" target="_blank" rel="noreferrer"><code>core_client.py</code></a></td></tr>
+          <tr><td>EngineCore → AsyncLLM</td><td>ZMQ PUSH → PULL (msgpack)</td><td><code>EngineCoreOutputs</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core_client.py" target="_blank" rel="noreferrer"><code>core_client.py</code></a></td></tr>
+          <tr><td>OutputProcessor → generate()</td><td>asyncio Event / RequestOutputCollector</td><td><code>RequestOutput</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/output_processor.py" target="_blank" rel="noreferrer"><code>output_processor.py</code></a></td></tr>
+          <tr><td>EngineCore → Scheduler</td><td>函数调用</td><td><code>SchedulerOutput</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core.py" target="_blank" rel="noreferrer"><code>core.py</code></a> / <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/sched/scheduler.py" target="_blank" rel="noreferrer"><code>scheduler.py</code></a></td></tr>
+          <tr><td>EngineCore → Executor</td><td>函数调用 (Future)</td><td><code>SchedulerOutput</code> / <code>ModelRunnerOutput</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core.py" target="_blank" rel="noreferrer"><code>core.py</code></a></td></tr>
+          <tr><td>Executor → Worker</td><td><code>collective_rpc</code> (函数调用/进程消息)</td><td>方法名 + 参数</td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/executor/abstract.py" target="_blank" rel="noreferrer"><code>executor/abstract.py</code></a></td></tr>
+          <tr><td>EngineCoreProc 内部</td><td><code>queue.Queue</code></td><td>IO 线程 ↔ busy loop</td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core.py" target="_blank" rel="noreferrer"><code>core.py</code></a></td></tr>
+          <tr><td>DP 协调 (可选)</td><td>ZMQ XPUB/XSUB + PULL</td><td>wave / stats</td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core.py" target="_blank" rel="noreferrer"><code>core.py</code></a></td></tr>
         </tbody>
       </table>
 
@@ -748,26 +752,26 @@ classDiagram
       <table>
         <thead><tr><th>模块</th><th>核心类</th><th>文件</th></tr></thead>
         <tbody>
-          <tr><td>入口 - 离线</td><td><code>LLM</code></td><td><code>vllm/entrypoints/llm.py</code></td></tr>
-          <tr><td>入口 - 在线</td><td><code>OpenAIServing</code> / <code>OpenAIServingChat</code> / <code>OpenAIServingCompletion</code></td><td><code>vllm/entrypoints/openai/</code></td></tr>
-          <tr><td>引擎 - 前端</td><td><code>AsyncLLM</code> / <code>LLMEngine</code></td><td><code>vllm/v1/engine/async_llm.py</code> / <code>llm_engine.py</code></td></tr>
-          <tr><td>引擎 - 输入</td><td><code>InputProcessor</code></td><td><code>vllm/v1/engine/input_processor.py</code></td></tr>
-          <tr><td>引擎 - 输出</td><td><code>OutputProcessor</code> / <code>RequestState</code> / <code>RequestOutputCollector</code></td><td><code>vllm/v1/engine/output_processor.py</code></td></tr>
-          <tr><td>引擎 - Detokenize</td><td><code>IncrementalDetokenizer</code> / <code>FastIncrementalDetokenizer</code> / <code>SlowIncrementalDetokenizer</code></td><td><code>vllm/v1/engine/detokenizer.py</code></td></tr>
-          <tr><td>引擎 - 核心</td><td><code>EngineCore</code> / <code>EngineCoreProc</code></td><td><code>vllm/v1/engine/core.py</code></td></tr>
-          <tr><td>引擎 - 客户端</td><td><code>EngineCoreClient</code> / <code>InprocClient</code> / <code>MPClient</code> / <code>AsyncMPClient</code> / <code>SyncMPClient</code></td><td><code>vllm/v1/engine/core_client.py</code></td></tr>
-          <tr><td>调度</td><td><code>Scheduler</code> / <code>AsyncScheduler</code> / <code>SchedulerInterface</code></td><td><code>vllm/v1/core/sched/scheduler.py</code></td></tr>
-          <tr><td>调度 - 队列</td><td><code>RequestQueue</code> / <code>FCFSRequestQueue</code> / <code>PriorityRequestQueue</code></td><td><code>vllm/v1/core/sched/request_queue.py</code></td></tr>
-          <tr><td>调度 - 输出</td><td><code>SchedulerOutput</code> / <code>NewRequestData</code> / <code>CachedRequestData</code></td><td><code>vllm/v1/core/sched/output.py</code></td></tr>
-          <tr><td>KV Cache</td><td><code>KVCacheManager</code></td><td><code>vllm/v1/core/kv_cache_manager.py</code></td></tr>
-          <tr><td>KV - 协调器</td><td><code>KVCacheCoordinator</code> / <code>UnitaryKVCacheCoordinator</code> / <code>HybridKVCacheCoordinator</code> / <code>KVCacheCoordinatorNoPrefixCache</code></td><td><code>vllm/v1/core/kv_cache_coordinator.py</code></td></tr>
-          <tr><td>KV - 类型管理</td><td><code>SingleTypeKVCacheManager</code> / <code>FullAttentionManager</code> / <code>SlidingWindowManager</code> / <code>MambaManager</code></td><td><code>vllm/v1/core/single_type_kv_cache_manager.py</code></td></tr>
-          <tr><td>Block Pool</td><td><code>BlockPool</code> / <code>FreeKVCacheBlockQueue</code> / <code>KVCacheBlock</code></td><td><code>vllm/v1/core/block_pool.py</code> / <code>kv_cache_utils.py</code></td></tr>
-          <tr><td>执行器</td><td><code>Executor</code> / <code>UniProcExecutor</code> / <code>MultiprocExecutor</code> / <code>RayDistributedExecutor</code></td><td><code>vllm/v1/executor/</code></td></tr>
-          <tr><td>Worker</td><td><code>WorkerBase</code> / <code>Worker</code> / <code>WorkerWrapperBase</code></td><td><code>vllm/v1/worker/worker_base.py</code> / <code>gpu_worker.py</code></td></tr>
-          <tr><td>ModelRunner</td><td><code>GPUModelRunner</code> / <code>InputBatch</code> / <code>CachedRequestState</code></td><td><code>vllm/v1/worker/gpu_model_runner.py</code> / <code>gpu_input_batch.py</code></td></tr>
-          <tr><td>采样</td><td><code>Sampler</code></td><td><code>vllm/v1/sample/sampler.py</code></td></tr>
-          <tr><td>配置</td><td><code>VllmConfig</code></td><td><code>vllm/config/vllm.py</code></td></tr>
+          <tr><td>入口 - 离线</td><td><code>LLM</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/entrypoints/llm.py" target="_blank" rel="noreferrer"><code>vllm/entrypoints/llm.py</code></a></td></tr>
+          <tr><td>入口 - 在线</td><td><code>OpenAIServing</code> / <code>OpenAIServingChat</code> / <code>OpenAIServingCompletion</code></td><td><a href="https://github.com/vllm-project/vllm/tree/main/vllm/entrypoints/openai" target="_blank" rel="noreferrer"><code>vllm/entrypoints/openai/</code></a></td></tr>
+          <tr><td>引擎 - 前端</td><td><code>AsyncLLM</code> / <code>LLMEngine</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/async_llm.py" target="_blank" rel="noreferrer"><code>vllm/v1/engine/async_llm.py</code></a> / <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/llm_engine.py" target="_blank" rel="noreferrer"><code>llm_engine.py</code></a></td></tr>
+          <tr><td>引擎 - 输入</td><td><code>InputProcessor</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/input_processor.py" target="_blank" rel="noreferrer"><code>vllm/v1/engine/input_processor.py</code></a></td></tr>
+          <tr><td>引擎 - 输出</td><td><code>OutputProcessor</code> / <code>RequestState</code> / <code>RequestOutputCollector</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/output_processor.py" target="_blank" rel="noreferrer"><code>vllm/v1/engine/output_processor.py</code></a></td></tr>
+          <tr><td>引擎 - Detokenize</td><td><code>IncrementalDetokenizer</code> / <code>FastIncrementalDetokenizer</code> / <code>SlowIncrementalDetokenizer</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/detokenizer.py" target="_blank" rel="noreferrer"><code>vllm/v1/engine/detokenizer.py</code></a></td></tr>
+          <tr><td>引擎 - 核心</td><td><code>EngineCore</code> / <code>EngineCoreProc</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core.py" target="_blank" rel="noreferrer"><code>vllm/v1/engine/core.py</code></a></td></tr>
+          <tr><td>引擎 - 客户端</td><td><code>EngineCoreClient</code> / <code>InprocClient</code> / <code>MPClient</code> / <code>AsyncMPClient</code> / <code>SyncMPClient</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/engine/core_client.py" target="_blank" rel="noreferrer"><code>vllm/v1/engine/core_client.py</code></a></td></tr>
+          <tr><td>调度</td><td><code>Scheduler</code> / <code>AsyncScheduler</code> / <code>SchedulerInterface</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/sched/scheduler.py" target="_blank" rel="noreferrer"><code>vllm/v1/core/sched/scheduler.py</code></a></td></tr>
+          <tr><td>调度 - 队列</td><td><code>RequestQueue</code> / <code>FCFSRequestQueue</code> / <code>PriorityRequestQueue</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/sched/request_queue.py" target="_blank" rel="noreferrer"><code>vllm/v1/core/sched/request_queue.py</code></a></td></tr>
+          <tr><td>调度 - 输出</td><td><code>SchedulerOutput</code> / <code>NewRequestData</code> / <code>CachedRequestData</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/sched/output.py" target="_blank" rel="noreferrer"><code>vllm/v1/core/sched/output.py</code></a></td></tr>
+          <tr><td>KV Cache</td><td><code>KVCacheManager</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_manager.py" target="_blank" rel="noreferrer"><code>vllm/v1/core/kv_cache_manager.py</code></a></td></tr>
+          <tr><td>KV - 协调器</td><td><code>KVCacheCoordinator</code> / <code>UnitaryKVCacheCoordinator</code> / <code>HybridKVCacheCoordinator</code> / <code>KVCacheCoordinatorNoPrefixCache</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_coordinator.py" target="_blank" rel="noreferrer"><code>vllm/v1/core/kv_cache_coordinator.py</code></a></td></tr>
+          <tr><td>KV - 类型管理</td><td><code>SingleTypeKVCacheManager</code> / <code>FullAttentionManager</code> / <code>SlidingWindowManager</code> / <code>MambaManager</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/single_type_kv_cache_manager.py" target="_blank" rel="noreferrer"><code>vllm/v1/core/single_type_kv_cache_manager.py</code></a></td></tr>
+          <tr><td>Block Pool</td><td><code>BlockPool</code> / <code>FreeKVCacheBlockQueue</code> / <code>KVCacheBlock</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/block_pool.py" target="_blank" rel="noreferrer"><code>vllm/v1/core/block_pool.py</code></a> / <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/core/kv_cache_utils.py" target="_blank" rel="noreferrer"><code>kv_cache_utils.py</code></a></td></tr>
+          <tr><td>执行器</td><td><code>Executor</code> / <code>UniProcExecutor</code> / <code>MultiprocExecutor</code> / <code>RayDistributedExecutor</code></td><td><a href="https://github.com/vllm-project/vllm/tree/main/vllm/v1/executor" target="_blank" rel="noreferrer"><code>vllm/v1/executor/</code></a></td></tr>
+          <tr><td>Worker</td><td><code>WorkerBase</code> / <code>Worker</code> / <code>WorkerWrapperBase</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/worker/worker_base.py" target="_blank" rel="noreferrer"><code>vllm/v1/worker/worker_base.py</code></a> / <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/worker/gpu_worker.py" target="_blank" rel="noreferrer"><code>gpu_worker.py</code></a></td></tr>
+          <tr><td>ModelRunner</td><td><code>GPUModelRunner</code> / <code>InputBatch</code> / <code>CachedRequestState</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/worker/gpu_model_runner.py" target="_blank" rel="noreferrer"><code>vllm/v1/worker/gpu_model_runner.py</code></a> / <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/worker/gpu_input_batch.py" target="_blank" rel="noreferrer"><code>gpu_input_batch.py</code></a></td></tr>
+          <tr><td>采样</td><td><code>Sampler</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/sample/sampler.py" target="_blank" rel="noreferrer"><code>vllm/v1/sample/sampler.py</code></a></td></tr>
+          <tr><td>配置</td><td><code>VllmConfig</code></td><td><a href="https://github.com/vllm-project/vllm/blob/main/vllm/config/vllm.py" target="_blank" rel="noreferrer"><code>vllm/config/vllm.py</code></a></td></tr>
         </tbody>
       </table>
 
@@ -804,13 +808,19 @@ classDiagram
         使用 ZMQ 进行进程间通信（ROUTER→DEALER 发请求，PUSH→PULL 收输出）。如果查阅旧资料，请注意区分 V0 和 V1 的架构差异。
       </Callout>
 
-      <div className="flex gap-2 mt-6">
-        <ExternalLink href="https://github.com/vllm-project/vllm" label="vLLM GitHub" />
-        <ExternalLink href="https://docs.vllm.ai/en/latest/design/arch_overview.html" label="架构文档" />
-        <ExternalLink href="https://github.com/xtms/vllm/blob/releases/v0.23.0/vllm_business_analysis.md" label="业务分析文档" />
-        <ExternalLink href="https://blog.vllm.ai/2023/06/20/vllm.html" label="vLLM 技术博客" />
-        <ExternalLink href="https://arxiv.org/abs/2309.06180" label="PagedAttention 论文" />
-      </div>
+      <ResourceTable resources={[
+          { name: 'vLLM GitHub', url: 'https://github.com/vllm-project/vllm', desc: 'vLLM 官方仓库，PagedAttention 推理引擎的完整实现' },
+          { name: 'vLLM 架构文档', url: 'https://docs.vllm.ai/en/latest/design/arch_overview.html', desc: 'vLLM V1 多进程架构、调度器、BlockManager 的详细设计文档' },
+          { name: 'vLLM 业务分析文档', url: 'https://github.com/xtms/vllm/blob/releases/v0.23.0/vllm_business_analysis.md', desc: 'vLLM v0.23.0 业务逻辑分析，覆盖 Engine/Scheduler/Worker 模块' },
+          { name: 'vLLM 技术博客', url: 'https://blog.vllm.ai/2023/06/20/vllm.html', desc: 'vLLM 团队官方博客，PagedAttention 与 Continuous Batching 详解' },
+          { name: 'PagedAttention 论文 (SOSP 2023)', url: 'https://arxiv.org/abs/2309.06180', desc: 'PagedAttention 原始论文，KV Cache 分页管理的理论基础' },
+          { name: 'Transformer 原始论文', url: 'https://arxiv.org/abs/1706.03762', desc: '"Attention Is All You Need"，Attention 机制的奠基之作' },
+          { name: 'The Illustrated Transformer', url: 'https://jalammar.github.io/illustrated-transformer/', desc: 'Jay Alammar 经典可视化图解，直观理解 Q/K/V 与多头注意力' },
+          { name: 'The Annotated Transformer', url: 'https://nlp.seas.harvard.edu/2018/04/03/attention.html', desc: 'Harvard NLP 逐行注释 PyTorch 实现，代码与公式一一对应' },
+          { name: 'Attention? Attention!', url: 'https://lilianweng.github.io/posts/2018-06-24-attention/', desc: 'Lilian Weng 注意力机制综述，从 Seq2Seq 到 Self-Attention 的演进' },
+          { name: 'nanoGPT', url: 'https://github.com/karpathy/nanoGPT', desc: 'Andrej Karpathy 极简 GPT 训练/推理实现，快速理解完整流程' },
+          { name: 'HuggingFace Transformers', url: 'https://github.com/huggingface/transformers', desc: '最流行的生产级 Transformer 库，BERT/GPT/Llama 等完整实现' },
+        ]} />
     </div>
   );
 }

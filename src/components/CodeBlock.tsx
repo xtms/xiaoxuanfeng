@@ -84,3 +84,36 @@ export function ExternalLink({ href, label }: { href: string; label: string }) {
     </a>
   );
 }
+
+interface Resource {
+  name: string;
+  url: string;
+  desc: string;
+}
+
+export function ResourceTable({ resources }: { resources: Resource[] }) {
+  return (
+    <table className="my-5">
+      <thead>
+        <tr>
+          <th>资源名称</th>
+          <th>链接</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        {resources.map((r) => (
+          <tr key={r.url}>
+            <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{r.name}</td>
+            <td>
+              <a href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.82rem', wordBreak: 'break-all' }}>
+                {r.url}
+              </a>
+            </td>
+            <td style={{ fontSize: '0.85rem' }}>{r.desc}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
