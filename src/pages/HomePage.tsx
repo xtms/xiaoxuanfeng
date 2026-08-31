@@ -117,7 +117,7 @@ export function HomePage() {
       {/* Learning path */}
       <h2 style={{ border: 'none', margin: '40px 0 4px', fontSize: '1.3rem' }}>学习路径</h2>
       <p className="text-sm" style={{ color: 'var(--text3)', margin: '0 0 16px' }}>
-        从入门到精通的推荐学习顺序，覆盖全部 11 个页面
+        从入门到精通的推荐学习顺序，覆盖全部 16 个页面
       </p>
       <div className="glass-card" style={{ padding: '16px 0' }}>
         <div className="learning-path">
@@ -180,12 +180,19 @@ export function HomePage() {
           <div className="path-step">
             <div className="path-step-num">9</div>
             <div className="path-step-content">
+              <h4><Link to="/kv-cache">框架专题：KV Cache</Link> + <Link to="/kv-pool">KV Pool</Link> + <Link to="/pd-separation">P/D 分离</Link> + <Link to="/serving-scheduler">服务调度</Link> + <Link to="/router">服务调度器</Link></h4>
+              <p>深入五大核心专题：KV Cache 管理方案、KV Pool 池化技术、Prefill/Decode 分离架构、调度策略对比、Router 网关</p>
+            </div>
+          </div>
+          <div className="path-step">
+            <div className="path-step-num">10</div>
+            <div className="path-step-content">
               <h4><Link to="/attention-en">Attention 论文原文</Link></h4>
               <p>阅读英文原版 "Attention Is All You Need"，配合精读加深理解</p>
             </div>
           </div>
           <div className="path-step">
-            <div className="path-step-num">10</div>
+            <div className="path-step-num">11</div>
             <div className="path-step-content">
               <h4><Link to="/infratech">InfraTech 基础设施</Link></h4>
               <p>了解 AI Infra 底层技术栈，涵盖训练推理框架、性能加速、深度学习与基础硬件</p>

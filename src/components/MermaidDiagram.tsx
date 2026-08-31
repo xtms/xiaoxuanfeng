@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface Props {
   chart: string;
   className?: string;
+  maxWidth?: number | string;
 }
 
 let mermaidInitialized = false;
@@ -34,7 +35,7 @@ async function loadMermaid() {
   return mermaid;
 }
 
-export function MermaidDiagram({ chart, className }: Props) {
+export function MermaidDiagram({ chart, className, maxWidth }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgWrapperRef = useRef<HTMLDivElement>(null);
   const id = useRef(`mermaid-${Math.random().toString(36).slice(2)}`);
@@ -124,7 +125,7 @@ export function MermaidDiagram({ chart, className }: Props) {
   const zoomReset = () => { setScale(1); setPan({ x: 0, y: 0 }); };
 
   return (
-    <div className={`mermaid-container ${className || ''}`} style={{ position: 'relative' }}>
+    <div className={`mermaid-container ${className || ''}`} style={{ position: 'relative', maxWidth: maxWidth || 'none' }}>
       {/* Controls */}
       <div style={{
         position: 'absolute', top: 8, right: 8, zIndex: 10,

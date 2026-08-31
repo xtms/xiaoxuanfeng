@@ -26,16 +26,80 @@ const sidebar: SidebarItem[] = [
   { to: '/nano-vllm', label: 'nano-vLLM-NPU' },
   { to: '/sglang', label: 'SGLang' },
   { to: '/comparison', label: '框架对比' },
+  {
+    label: '框架专题',
+    children: [
+      { to: '/kv-cache', label: 'KV Cache' },
+      {
+        label: 'KV Pool',
+        children: [
+          { to: '/kv-pool', label: '概览' },
+          { to: '/mooncake-kvpool', label: 'Mooncake KVPool' },
+          { to: '/memcache', label: 'Ascend MemCache' },
+        ],
+      },
+      { to: '/pd-separation', label: 'P/D 分离' },
+      { to: '/serving-scheduler', label: '服务调度' },
+      { to: '/router', label: '服务调度器' },
+      {
+        label: 'Mooncake',
+        children: [
+          { to: '/mooncake', label: '概览' },
+          { to: '/mooncake-kvpool', label: 'KVPool (HIXL)' },
+        ],
+      },
+    ],
+  },
   { to: '/attention-close-reading', label: 'Attention (精读)' },
   { to: '/attention-en', label: 'Attention (论文-EN)' },
   { to: '/infratech', label: 'InfraTech' },
 ];
 
+function SidebarItemRenderer({ item, collapsed, toggleGroup }: {
+  item: SidebarItem;
+  collapsed: Record<string, boolean>;
+  toggleGroup: (label: string) => void;
+}) {
+  if (item.children) {
+    return (
+      <div className="mb-1">
+        <button
+          onClick={() => toggleGroup(item.label)}
+          className="sidebar-group"
+        >
+          <span className={`sidebar-chevron ${collapsed[item.label] ? 'collapsed' : ''}`}>▾</span>
+          {item.label}
+        </button>
+        <div className={`sidebar-sub ${collapsed[item.label] ? 'collapsed' : ''}`}>
+          <div className="sidebar-children">
+            {item.children.map((child) => (
+              <SidebarItemRenderer
+                key={child.to || child.label}
+                item={child}
+                collapsed={collapsed}
+                toggleGroup={toggleGroup}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <NavLink key={item.to} to={item.to!} end={item.end} className={({ isActive }) =>
+      `sidebar-link sidebar-child-link ${isActive ? 'active' : ''}`
+    }>
+      {item.label}
+    </NavLink>
+  );
+}
+
 export function Layout() {
   const location = useLocation();
 
   // 折叠/展开状态：默认全部折叠
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 'vLLM': true });
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 'vLLM': true, '框架专题': true, 'KV Pool': true, 'Mooncake': true });
 
   // 左侧边栏和右侧目录栏的显隐状态
   const [sidebarHidden, setSidebarHidden] = useState(false);
@@ -57,26 +121,12 @@ export function Layout() {
           <nav className="px-3 py-3 space-y-0.5 flex-1">
             {sidebar.map((item) =>
               item.children ? (
-                <div key={item.label} className="mb-1">
-                  <button
-                    onClick={() => toggleGroup(item.label)}
-                    className="sidebar-group"
-                  >
-                    <span className={`sidebar-chevron ${collapsed[item.label] ? 'collapsed' : ''}`}>▾</span>
-                    {item.label}
-                  </button>
-                  <div className={`sidebar-sub ${collapsed[item.label] ? 'collapsed' : ''}`}>
-                    <div className="sidebar-children">
-                      {item.children.map((child) => (
-                        <NavLink key={child.to} to={child.to!} end={child.end} className={({ isActive }) =>
-                          `sidebar-link sidebar-child-link ${isActive ? 'active' : ''}`
-                        }>
-                          {child.label}
-                        </NavLink>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <SidebarItemRenderer
+                  key={item.label}
+                  item={item}
+                  collapsed={collapsed}
+                  toggleGroup={toggleGroup}
+                />
               ) : (
                 <NavLink key={item.to} to={item.to!} end={item.end} className={({ isActive }) =>
                   `sidebar-link ${isActive ? 'active' : ''}`

@@ -21,56 +21,231 @@ export function VLLMAscendPage() {
         <ExternalLink href="https://quay.io/ascend/vllm-ascend" label="Docker 镜像" />
       </div>
 
+      {/* ==================== 0. vLLM 与 vLLM-Ascend 的关系 ==================== */}
+      <div className="section-divider"><span>vLLM 与 vLLM-Ascend 的关系</span></div>
+      <p>
+        vLLM-Ascend <strong>不是 vLLM 的 fork</strong>，而是一个<strong>独立插件</strong>。两者的关系可以理解为：
+        vLLM 提供推理引擎的<strong>全部核心逻辑</strong>，vLLM-Ascend 提供<strong>硬件执行层的 Ascend NPU 实现</strong>。
+        两个仓库独立演进，通过 vLLM 定义的<strong>硬件可插拔接口</strong>在运行时动态组合。
+      </p>
+
+      <h3>仓库关系图</h3>
+      <MermaidDiagram chart={`
+flowchart LR
+  subgraph V["vLLM (vllm-project/vllm)"]
+    V1["入口层"] --> V2["引擎层"]
+    V2 --> V3["调度层"]
+    V2 --> V4["KV Cache"]
+    V3 --> V5["执行层"]
+    V4 --> V5
+    V5 --> V6["Worker"]
+    V6 --> V7["模型层"]
+    V1 --> V8["采样"]
+    V1 --> V9["配置"]
+  end
+
+  subgraph A["vLLM-Ascend (独立插件)"]
+    A1["Platform"]
+    A2["Worker"]
+    A3["ModelRunner"]
+    A4["Attention"]
+    A5["融合算子"]
+    A6["量化"]
+  end
+
+  V6 -.->|"插件注入"| A1
+  A1 --> A2 --> A3
+  A3 --> A4
+  A3 --> A5
+  A3 --> A6
+
+  style V fill:#e8f4fd,stroke:#0284c7
+  style A fill:#f3e8ff,stroke:#7c3aed
+      `} />
+
+      <h3>插件发现与加载机制</h3>
+      <p>vLLM 通过 Python 的 <strong>entry point</strong> 机制发现插件，无需修改 vLLM 任何代码。整个加载链路如下：</p>
+
+      <MermaidDiagram chart={`
+sequenceDiagram
+    participant U as 用户
+    participant ENV as 环境变量
+    participant EP as setuptools<br/>entry points
+    participant V as vLLM
+    participant AP as vLLM-Ascend
+    participant CANN as CANN 驱动
+
+    U->>ENV: export VLLM_USE_ASCEND=1
+    U->>V: pip install vllm vllm-ascend
+    Note over EP: pyproject.toml 声明<br/>[project.entry-points."vllm.platforms"]<br/>ascend = "vllm_ascend"
+
+    V->>V: 启动时 scan entry points
+    V->>EP: importlib.metadata.entry_points(group="vllm.platforms")
+    EP-->>V: {"ascend": "vllm_ascend"}
+    V->>AP: import vllm_ascend
+    AP->>AP: __init__.py 注册 AscendPlatform
+    AP->>CANN: 初始化 CANN 环境
+    CANN-->>AP: npu 设备就绪
+    V->>V: device_config.device = "npu"
+    V->>V: 通过 Platform 获取 Worker/Attention/Comm
+    Note over V: 后续所有硬件操作<br/>都通过 Platform 分发
+      `} />
+
+      <CodeBlock language="toml" title="pyproject.toml 中的 entry point 声明" code={`# vllm-ascend/pyproject.toml
+[project.entry-points."vllm.platforms"]
+ascend = "vllm_ascend"
+
+# 这告诉 vLLM: 当需要 "ascend" 平台时，
+# import vllm_ascend 包即可完成注册`} />
+
+      <h3>接口契约：vLLM 要求插件实现什么</h3>
+      <p>vLLM 定义了多层次的抽象接口，插件必须实现这些接口才能接入。每个接口都是一组<strong>必须实现的方法</strong>：</p>
+
+      <table>
+        <thead><tr><th>接口层</th><th>核心方法</th><th>vLLM 调用时机</th><th>Ascend 实现</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Platform</strong></td><td><code>get_device_name()</code><br/><code>get_device_total_memory()</code><br/><code>mem_get_info()</code><br/><code>device_ctx()</code><br/><code>get_attn_backend_cls()</code><br/><code>get_device_communicator_cls()</code></td><td>启动时确定设备类型<br/>内存分配/查询<br/>Worker 创建时获取后端类</td><td><code>return "npu"</code><br/><code>torch.npu.get_device_properties</code><br/><code>torch.npu.device()</code><br/><code>AscendAttentionBackend</code><br/><code>HcclCommunicator</code></td></tr>
+          <tr><td><strong>WorkerBase</strong></td><td><code>init_device()</code><br/><code>load_model()</code><br/><code>execute_model()</code><br/><code>sample_tokens()</code></td><td>启动时初始化设备<br/>加载模型权重<br/>每个 step 执行推理<br/>每个 step 采样</td><td><code>torch.npu.set_device()</code> + HCCL<br/><code>model.npu()</code> + CANN 转换<br/>CANN Graph 执行<br/>NPU 上采样</td></tr>
+          <tr><td><strong>AttentionBackend</strong></td><td><code>forward()</code><br/><code>forward_decode()</code></td><td>每层 Attention 前向<br/>Decode 阶段增量推理</td><td><code>npu_fused_infer_attention_score</code></td></tr>
+          <tr><td><strong>ModelRunner</strong></td><td><code>_prepare_inputs()</code><br/><code>_model_forward()</code><br/><code>compute_logits()</code></td><td>准备输入张量<br/>模型前向传播<br/>计算 logits</td><td>NPU 张量适配<br/>CANN 图编译<br/>ACL 矩阵乘</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="info">
+        <strong>接口设计原则：</strong>vLLM 的抽象接口只定义"<strong>做什么</strong>"（What），不定义"<strong>怎么做</strong>"（How）。
+        例如 <code>get_device_name()</code> 只要求返回设备名称字符串，不关心内部是 <code>torch.cuda</code> 还是 <code>torch.npu</code>。
+        这种设计使得同一套调度逻辑可以无缝适配不同硬件。
+      </Callout>
+
+      <h3>模块归属明细</h3>
+      <table>
+        <thead><tr><th>模块</th><th>归属</th><th>复用方式</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><strong>API Server</strong></td><td>🟦 vLLM</td><td>直接复用</td><td>OpenAI 兼容 API、SSE 流式响应</td></tr>
+          <tr><td><strong>LLMEngine / AsyncLLM</strong></td><td>🟦 vLLM</td><td>直接复用</td><td>请求入口、InputProcessor、OutputProcessor</td></tr>
+          <tr><td><strong>Scheduler</strong></td><td>🟦 vLLM</td><td>直接复用</td><td>三阶段调度、Continuous Batching、抢占</td></tr>
+          <tr><td><strong>KVCacheManager / BlockPool</strong></td><td>🟦 vLLM</td><td>直接复用</td><td>PagedAttention、前缀缓存、LRU 淘汰</td></tr>
+          <tr><td><strong>Executor</strong></td><td>🟦 vLLM</td><td>直接复用</td><td>UniProc/Multiproc/Ray 执行器</td></tr>
+          <tr><td><strong>Sampler</strong></td><td>🟦 vLLM</td><td>直接复用</td><td>temperature/top-k/top-p 采样</td></tr>
+          <tr><td><strong>VllmConfig</strong></td><td>🟦 vLLM</td><td>直接复用</td><td>~25 子配置，统一参数化</td></tr>
+          <tr><td><strong>模型定义 (295+)</strong></td><td>🟦 vLLM</td><td>直接复用</td><td>所有模型架构，device-agnostic</td></tr>
+          <tr style={{ borderTop: '2px solid var(--border)' }}><td><strong>Platform</strong></td><td>🟣 vLLM-Ascend</td><td>接口实现</td><td>注册 Ascend 平台，注入设备/通信/注意力后端</td></tr>
+          <tr><td><strong>Worker</strong></td><td>🟣 vLLM-Ascend</td><td>继承替换</td><td>AscendWorker 继承 WorkerBase，替换 GPUWorker</td></tr>
+          <tr><td><strong>ModelRunner</strong></td><td>🟣 vLLM-Ascend</td><td>继承替换</td><td>AscendModelRunner 继承 GPUModelRunner，NPU 优化</td></tr>
+          <tr><td><strong>Attention 后端</strong></td><td>🟣 vLLM-Ascend</td><td>接口实现</td><td>AscendAttentionBackend，CANN 融合算子</td></tr>
+          <tr><td><strong>融合算子</strong></td><td>🟣 vLLM-Ascend</td><td>新增</td><td>MoE/RMSNorm/RoPE 等 CANN 融合 kernel</td></tr>
+          <tr><td><strong>量化</strong></td><td>🟣 vLLM-Ascend</td><td>新增</td><td>FP8/INT8/W8A8 等 Ascend 量化方案</td></tr>
+          <tr><td><strong>通信后端</strong></td><td>🟣 vLLM-Ascend</td><td>接口实现</td><td>HCCL 替代 NCCL</td></tr>
+        </tbody>
+      </table>
+
+      <h3>版本兼容性与依赖链</h3>
+      <p>vLLM-Ascend 的版本管理遵循<strong>严格匹配</strong>策略，整个依赖链从上到下必须版本一致：</p>
+
+      <MermaidDiagram chart={`
+flowchart TD
+    V["vLLM vX.Y.Z"] -->|"pip install vllm==X.Y.Z"| VA["vLLM-Ascend vX.Y.Z"]
+    VA -->|"依赖"| T["TorchNPU ≥2.10"]
+    VA -->|"依赖"| C["CANN ≥9.1.0"]
+    T -->|"映射到"| C
+    C -->|"驱动"| D["Ascend 驱动"]
+    D -->|"管理"| H["NPU 硬件"]
+
+    V -.->|"接口兼容性检查"| VA
+    VA -.->|"分支对应"| V
+    Note1["vLLM main → vLLM-Ascend main"]
+    Note2["vLLM releases/vX.Y.Z → vLLM-Ascend releases/vX.Y.Z"]
+      `} />
+
+      <table>
+        <thead><tr><th>版本场景</th><th>vLLM</th><th>vLLM-Ascend</th><th>结果</th></tr></thead>
+        <tbody>
+          <tr><td>✅ 正常</td><td>0.23.0</td><td>0.23.0</td><td>接口兼容，正常运行</td></tr>
+          <tr><td>❌ 不匹配</td><td>0.23.0</td><td>0.22.0</td><td>接口可能不兼容，启动报错</td></tr>
+          <tr><td>❌ 不匹配</td><td>0.23.1</td><td>0.23.0</td><td>patch 版本也需一致，可能报错</td></tr>
+          <tr><td>⚠️ main 分支</td><td>main</td><td>main</td><td>持续集成，每日同步，可能不稳定</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="warning">
+        <strong>版本匹配是硬性要求：</strong>vLLM 的接口在 minor 版本间可能变化（新增方法、修改签名等）。
+        如果 vLLM-Ascend 版本不匹配，<code>hasattr(platform, "new_method")</code> 检查失败，或方法签名不匹配导致运行时崩溃。
+        这也是为什么 Docker 镜像将 vLLM + vLLM-Ascend + CANN + TorchNPU 打包在一起——确保全链路版本一致。
+      </Callout>
+
+      <h3>vLLM 升级对插件的影响</h3>
+      <p>当 vLLM 发布新版本时，vLLM-Ascend 需要同步跟进。以下是典型的升级流程和影响评估：</p>
+
+      <table>
+        <thead><tr><th>vLLM 变更类型</th><th>对插件的影响</th><th>Ascend 需做的改动</th><th>示例</th></tr></thead>
+        <tbody>
+          <tr><td><strong>调度/Scheduler 变更</strong></td><td>🟢 无影响</td><td>无需改动（完全复用）</td><td>新增抢占策略、优化调度算法</td></tr>
+          <tr><td><strong>KV Cache 变更</strong></td><td>🟢 无影响</td><td>无需改动（完全复用）</td><td>BlockPool 优化、新增缓存策略</td></tr>
+          <tr><td><strong>模型层变更</strong></td><td>🟢 无影响</td><td>无需改动（device-agnostic）</td><td>新增模型架构支持</td></tr>
+          <tr><td><strong>Platform 接口新增方法</strong></td><td>🔴 必须实现</td><td>实现新方法，否则启动报错</td><td>新增 <code>get_punica_wrapper()</code></td></tr>
+          <tr><td><strong>Worker 接口变更</strong></td><td>🔴 必须适配</td><td>修改 Worker 实现</td><td><code>execute_model()</code> 签名变化</td></tr>
+          <tr><td><strong>Attention 接口变更</strong></td><td>🔴 必须适配</td><td>修改 Attention 后端</td><td>新增 <code>forward_prefix()</code> 方法</td></tr>
+          <tr><td><strong>新增特性 (如 Disaggregated)</strong></td><td>🟡 可选支持</td><td>按需实现，不实现则降级</td><td>分离式 Prefill/Decode</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="tip">
+        <strong>一句话总结：</strong>vLLM 负责"<strong>怎么调度</strong>"（Scheduler、KVCacheManager、Continuous Batching），
+        vLLM-Ascend 负责"<strong>在什么硬件上执行</strong>"（AscendWorker、CANN 融合算子、HCCL 通信）。
+        两者的接口边界在 <code>Platform</code> 抽象层，通过 <code>vllm.platforms</code> entry point 动态发现和加载。
+        当 vLLM 接口不变时，插件零改动即可升级；当接口变化时，插件需同步实现新方法。
+      </Callout>
+
       {/* ==================== 1. 架构总览 ==================== */}
       <div className="section-divider"><span>架构总览</span></div>
       <p>核心设计理念：<strong>硬件可插拔（Hardware Pluggable）</strong>。Ascend 适配代码完全在独立仓库中，通过 vLLM 定义的插件接口注入，不与 vLLM 核心代码耦合。</p>
 
       <MermaidDiagram chart={`
 flowchart TB
-  subgraph VLLM["vLLM 核心 (vendor-agnostic)"]
-    API["API Server<br/>OpenAI 兼容"]
-    ENGINE["LLMEngine / AsyncLLM"]
-    SCHED["Scheduler<br/>三阶段调度"]
-    BLOCK["BlockManager<br/>PagedAttention"]
-    PLATFORM_IF["Platform 抽象接口<br/>Platform / PlatformEnum"]
-    ATT_IF["Attention 抽象接口<br/>AttentionBackend"]
-    WORKER_IF["Worker 抽象接口<br/>WorkerBase"]
-    EXEC_IF["Executor 抽象接口<br/>Executor"]
+  subgraph VLLM["vLLM 核心"]
+    API["API Server"]
+    ENG["LLMEngine"]
+    SCH["Scheduler"]
+    BLK["BlockManager"]
+    PIF["Platform 接口"]
+    AIF["Attention 接口"]
+    WIF["Worker 接口"]
+    EIF["Executor 接口"]
   end
 
-  subgraph PLUGIN["vLLM-Ascend 插件 (独立仓库)"]
-    ASCEND_PLAT["AscendPlatform<br/>平台注册与初始化"]
-    ASCEND_ATT["AscendAttention<br/>融合注意力算子"]
-    ASCEND_WORKER["AscendWorker<br/>NPU 模型加载与执行"]
-    ASCEND_MR["AscendModelRunner<br/>NPU 图编译与优化"]
-    ASCEND_OPS["Ascend 自定义算子<br/>融合 MoE / RMSNorm / Rotory"]
-    ASCEND_QUANT["Ascend 量化<br/>INT8 / FP8 / W8A8"]
+  subgraph PLUGIN["vLLM-Ascend 插件"]
+    APL["AscendPlatform"]
+    AAT["AscendAttention"]
+    AWK["AscendWorker"]
+    AMR["AscendModelRunner"]
+    AOPS["融合算子"]
+    AQNT["量化"]
   end
 
   subgraph STACK["Ascend 软件栈"]
-    TORCHNPU["TorchNPU 2.10.0<br/>PyTorch NPU 后端"]
-    CANN["CANN 9.1.0<br/>Ascend 计算框架"]
-    HCCL["HCCL<br/>集合通信库"]
-    ACL["ACL<br/>Ascend 计算库"]
+    TNPU["TorchNPU"]
+    CANN["CANN"]
+    HCCL["HCCL"]
+    ACL["ACL"]
   end
 
   subgraph HW["Ascend 硬件"]
-    A2["Atlas 800I A2<br/>(Ascend 910B)"]
-    A3["Atlas 800I A3<br/>(Ascend 910C)"]
-    DUO["Atlas 300I Duo"]
+    A2["910B / A2"]
+    A3["910C / A3"]
+    DUO["300I Duo"]
   end
 
-  API --> ENGINE --> SCHED --> BLOCK
-  BLOCK --> PLATFORM_IF
-  PLATFORM_IF --> ASCEND_PLAT
-  ASCEND_PLAT --> ASCEND_WORKER --> ASCEND_MR
-  ASCEND_MR --> ASCEND_ATT
-  ASCEND_MR --> ASCEND_OPS
-  ASCEND_MR --> ASCEND_QUANT
-  ASCEND_ATT --> TORCHNPU
-  ASCEND_OPS --> TORCHNPU
-  ASCEND_WORKER --> HCCL
-  TORCHNPU --> CANN
+  API --> ENG --> SCH --> BLK
+  BLK --> PIF
+  PIF --> APL
+  APL --> AWK --> AMR
+  AMR --> AAT
+  AMR --> AOPS
+  AMR --> AQNT
+  AAT --> TNPU
+  AOPS --> TNPU
+  AWK --> HCCL
+  TNPU --> CANN
   HCCL --> CANN
   CANN --> ACL
   ACL --> HW
@@ -373,30 +548,23 @@ sequenceDiagram
 
       <MermaidDiagram chart={`
 flowchart TB
-    subgraph CUDA_PATH["CUDA 路径"]
-        C1["模型加载到 GPU"]
-        C2["CUDA Graph 捕获<br/>FULL / DECODE 模式"]
-        C3["CUDA Graph Replay<br/>每步执行"]
-        C1 --> C2 --> C3
+    subgraph CUDA["CUDA 路径"]
+        C1["加载到 GPU"] --> C2["CUDA Graph 捕获"] --> C3["Graph Replay 执行"]
     end
 
-    subgraph NPU_PATH["NPU 路径 (Ascend)"]
-        N1["模型加载到 NPU"]
-        N2["CANN 图编译<br/>torch.compile(backend='npu')"]
-        N3["CANN Graph 缓存<br/>避免重复编译"]
-        N4["CANN Graph 执行<br/>每步执行"]
-        N1 --> N2 --> N3 --> N4
+    subgraph NPU["NPU 路径"]
+        N1["加载到 NPU"] --> N2["torch.compile(npu)"] --> N3["图缓存"] --> N4["图执行"]
     end
 
     subgraph COMMON["共享逻辑"]
-        M1["_prepare_inputs<br/>构建输入张量"]
-        M2["_build_attention_metadata<br/>注意力元数据"]
-        M3["compute_logits<br/>logits 计算"]
-        M4["sample_tokens<br/>采样"]
+        M1["_prepare_inputs"]
+        M2["attn_metadata"]
+        M3["compute_logits"]
+        M4["sample_tokens"]
     end
 
-    CUDA_PATH --> COMMON
-    NPU_PATH --> COMMON
+    CUDA --> COMMON
+    NPU --> COMMON
       `} />
 
       <h3>注意力后端实现</h3>
@@ -599,102 +767,77 @@ python -c "import vllm_ascend; print('vLLM-Ascend installed')"`} />
       <MermaidDiagram chart={`
 classDiagram
   class Platform {
-    <<abstract>>
-    +get_device_name() str
-    +get_device_total_memory() int
-    +get_current_memory_usage() int
-    +mem_get_info() tuple
-    +get_device_communicator_cls() Type
-    +get_attn_backend_cls() Type
-    +device_ctx() ContextManager
-    +is_custom_op_supported() bool
+    &lt;&lt;abstract&gt;&gt;
+    +get_device_name()
+    +get_device_total_memory()
+    +mem_get_info()
+    +device_ctx()
+    +get_attn_backend_cls()
+    +get_comm_cls()
   }
-
   class AscendPlatform {
     +get_device_name() "npu"
-    +get_device_total_memory() torch.npu.get_device_properties
-    +get_current_memory_usage() torch.npu.memory_allocated
     +mem_get_info() torch.npu
-    +get_device_communicator_cls() HcclCommunicator
-    +get_attn_backend_cls() AscendAttentionBackend
     +device_ctx() torch.npu.device
-    +is_custom_op_supported() True
+    +get_attn_backend_cls() AscendAttention
+    +get_comm_cls() HcclComm
   }
-
   class WorkerBase {
-    <<abstract>>
-    +VllmConfig vllm_config
-    +int local_rank
-    +int rank
+    &lt;&lt;abstract&gt;&gt;
     +init_device()
     +load_model()
     +execute_model()
     +sample_tokens()
   }
-
   class GPUWorker {
     +init_device() torch.cuda
     +load_model() model.cuda()
     +execute_model() CUDA Graph
   }
-
   class AscendWorker {
-    +init_device() torch.npu.set_device + HCCL
-    +load_model() model.npu() + CANN 转换
+    +init_device() torch.npu + HCCL
+    +load_model() model.npu()
     +execute_model() CANN Graph
-    +_convert_weights_to_ascend()
   }
-
   class AttentionBackend {
-    <<abstract>>
+    &lt;&lt;abstract&gt;&gt;
     +forward()
     +forward_decode()
   }
-
-  class FlashAttentionBackend {
-    +forward() flash_attn_varlen_func
-    +forward_decode() flash_attn_with_kvcache
+  class FlashAttn {
+    +forward() flash_attn_func
+    +forward_decode() flash_attn_kvcache
   }
-
-  class AscendAttentionBackend {
-    +forward() npu_fused_infer_attention_score
-    +forward_decode() npu_fused_infer_attention_score
+  class AscendAttention {
+    +forward() npu_fused_attn
+    +forward_decode() npu_fused_attn
   }
-
   class GPUModelRunner {
-    +nn.Module model
-    +InputBatch input_batch
-    +Sampler sampler
     +execute_model() CUDA Graph
     +_prepare_inputs()
     +_model_forward()
-    +compute_logits()
   }
-
   class AscendModelRunner {
     +execute_model() CANN Graph
-    +_compile_model() torch.compile(backend='npu')
-    +_prepare_inputs() 适配 NPU
+    +_compile_model() torch.compile
   }
-
-  class HcclCommunicator {
-    +all_reduce() hcclAllReduce
-    +all_gather() hcclAllGather
-    +reduce_scatter() hcclReduceScatter
-    +broadcast() hcclBroadcast
+  class HcclComm {
+    +all_reduce()
+    +all_gather()
+    +broadcast()
   }
 
   Platform <|-- AscendPlatform
   WorkerBase <|-- GPUWorker
   WorkerBase <|-- AscendWorker
-  AttentionBackend <|-- FlashAttentionBackend
-  AttentionBackend <|-- AscendAttentionBackend
+  AttentionBackend <|-- FlashAttn
+  AttentionBackend <|-- AscendAttention
   GPUModelRunner <|-- AscendModelRunner
-  AscendPlatform --> AscendWorker : 创建
-  AscendPlatform --> AscendAttentionBackend : 提供
-  AscendPlatform --> HcclCommunicator : 提供
-  AscendWorker --> AscendModelRunner : 创建
-  AscendModelRunner --> AscendAttentionBackend : 使用
+  AscendPlatform --> AscendWorker
+  AscendPlatform --> AscendAttention
+  AscendPlatform --> HcclComm
+  AscendWorker --> AscendModelRunner
+  AscendModelRunner --> AscendAttention
       `} />
 
       {/* ==================== 13. 关键差异总结 ==================== */}

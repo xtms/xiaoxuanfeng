@@ -12,6 +12,14 @@ import { AttentionCloseReadingPage } from './pages/AttentionCloseReadingPage';
 import { AttentionENPage } from './pages/AttentionENPage';
 import { InfraTechPage } from './pages/InfraTechPage';
 import { VLLMQuickStartPage } from './pages/VLLMQuickStartPage';
+import { KVCachePage } from './pages/KVCachePage';
+import { PDSeparationPage } from './pages/PDSeparationPage';
+import { ServingSchedulerPage } from './pages/ServingSchedulerPage';
+import { RouterPage } from './pages/RouterPage';
+import { KVPoolPage } from './pages/KVPoolPage';
+import { MemCachePage } from './pages/MemCachePage';
+import { MooncakeKVPoolPage } from './pages/MooncakeKVPoolPage';
+import { MooncakePage } from './pages/MooncakePage';
 
 export default function App() {
   return (
@@ -30,6 +38,14 @@ export default function App() {
           <Route path="/attention-en" element={<AttentionENPage />} />
           <Route path="/infratech" element={<InfraTechPage />} />
           <Route path="/vllm-quickstart" element={<VLLMQuickStartPage />} />
+          <Route path="/kv-cache" element={<KVCachePage />} />
+          <Route path="/pd-separation" element={<PDSeparationPage />} />
+          <Route path="/serving-scheduler" element={<ServingSchedulerPage />} />
+          <Route path="/router" element={<RouterPage />} />
+          <Route path="/kv-pool" element={<KVPoolPage />} />
+          <Route path="/memcache" element={<MemCachePage />} />
+          <Route path="/mooncake-kvpool" element={<MooncakeKVPoolPage />} />
+          <Route path="/mooncake" element={<MooncakePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -186,6 +186,97 @@ print(outputs[0].outputs[0].text)`} />
         <code>SyncMPClient</code> 使用 <code>queue.Queue</code>，<code>AsyncMPClient</code> 使用 <code>asyncio.Queue</code>。
       </Callout>
 
+      {/* ==================== 2.5. 启动流程 ==================== */}
+      <div className="section-divider"><span>启动流程</span></div>
+      <p>vLLM 的启动从命令行参数解析到模型就绪，经历<strong>配置构建 → 设备初始化 → 模型加载 → 引擎启动</strong>四个阶段：</p>
+
+      <MermaidDiagram chart={`
+sequenceDiagram
+    participant CLI as 命令行
+    participant ARGS as ArgParser
+    participant EC as EngineArgs
+    participant VC as VllmConfig
+    participant PLAT as Platform
+    participant DEV as 设备初始化
+    participant EXEC as Executor
+    participant W as Worker
+    participant MR as ModelRunner
+    participant M as Model
+    participant KV as KV Cache
+    participant S as Scheduler
+
+    CLI->>ARGS: python -m vllm serve model --port 8000
+    ARGS->>EC: EngineArgs.from_cli_args()
+    EC->>VC: EngineArgs.create_engine_config()
+    VC->>VC: 构建 25 个子配置
+    VC->>VC: compute_hash() 缓存一致性
+
+    VC->>PLAT: resolve_obj_by_platform()
+    PLAT->>PLAT: 确定设备类型 (cuda/rocm/npu/...)
+    PLAT->>PLAT: 注册平台实现
+
+    VC->>DEV: 设置 CUDA_VISIBLE_DEVICES
+    DEV->>DEV: torch.cuda.set_device()
+    DEV->>DEV: 初始化 NCCL 进程组 (多卡)
+
+    VC->>EXEC: Executor.get_class(vllm_config)
+    EXEC->>EXEC: 选择 UniProc/Multiproc/Ray
+    EXEC->>W: 创建 Worker 进程
+    W->>W: init_device() 设置 GPU
+    W->>MR: 创建 GPUModelRunner
+    MR->>M: load_model()
+    M->>M: 加载权重 (按 TP 分片)
+    M->>M: 应用量化 (FP8/INT8/...)
+    MR->>MR: capture_model() CUDA Graph
+    MR->>MR: 预分配 KV Cache
+    W-->>EXEC: 模型就绪
+
+    EXEC->>KV: determine_available_memory()
+    KV->>KV: 计算可用显存
+    KV->>KV: 初始化 BlockPool
+    KV->>KV: 创建 free_block_queue
+
+    VC->>S: 创建 Scheduler
+    S->>S: 初始化 waiting/running 队列
+    S->>S: 设置 token_budget / max_reqs
+
+    Note over CLI,S: 启动完成，开始接受请求
+      `} />
+
+      <h3>启动参数详解</h3>
+      <CodeBlock language="bash" title="vLLM 启动命令" code={`# 在线服务
+python -m vllm.entrypoints.openai.api_server \\
+    --model Qwen/Qwen2-7B-Instruct \\
+    --tensor-parallel-size 2 \\
+    --gpu-memory-utilization 0.90 \\
+    --max-model-len 8192 \\
+    --max-num-seqs 256 \\
+    --enable-prefix-caching \\
+    --enable-chunked-prefill \\
+    --max-num-batched-tokens 8192`} />
+
+      <table>
+        <thead><tr><th>参数</th><th>默认值</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>--tensor-parallel-size</code></td><td>1</td><td>张量并行度，每层权重切分到 N 张 GPU</td></tr>
+          <tr><td><code>--gpu-memory-utilization</code></td><td>0.90</td><td>GPU 显存利用率上限，剩余留给 CUDA context</td></tr>
+          <tr><td><code>--max-model-len</code></td><td>模型配置</td><td>最大序列长度，超过则截断</td></tr>
+          <tr><td><code>--max-num-seqs</code></td><td>256</td><td>最大并发请求数，影响 KV Cache 分配</td></tr>
+          <tr><td><code>--enable-prefix-caching</code></td><td>False</td><td>启用前缀缓存，多轮对话显著加速</td></tr>
+          <tr><td><code>--enable-chunked-prefill</code></td><td>True</td><td>启用分块 prefill，降低首 token 延迟</td></tr>
+          <tr><td><code>--max-num-batched-tokens</code></td><td>8192</td><td>每步最大 token 数，控制 prefill 分块大小</td></tr>
+          <tr><td><code>--dtype</code></td><td>auto</td><td>模型精度：auto/float16/bfloat16/float32</td></tr>
+          <tr><td><code>--quantization</code></td><td>None</td><td>量化方法：fp8/gptq/awq/marlin/...</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="info">
+        <strong>显存计算：</strong>KV Cache 占用 = <code>2 × num_layers × num_kv_heads × head_dim × max_model_len × max_num_seqs × dtype_size</code>。
+        例如 Qwen2-7B (28层, 4 KV heads, 128 head_dim, BF16, 8192 tokens, 256 seqs)：
+        <code>2 × 28 × 4 × 128 × 8192 × 256 × 2</code> ≈ <strong>114 GB</strong>，远超单卡 80GB，
+        因此需要 TP=2 或降低 max_model_len。
+      </Callout>
+
       {/* ==================== 3. EngineCore.step 内部流程 ==================== */}
       <div className="section-divider"><span>EngineCore.step 内部流程</span></div>
       <p>这是 vLLM 最核心的繁忙循环，每次迭代经历调度 → 执行 → 采样 → 更新四个阶段：</p>
@@ -259,6 +350,85 @@ sequenceDiagram
       <Callout type="info">
         <strong>Continuous Batching：</strong>每步动态组合批处理，prefill 和 decode 混合调度（<code>chunked_prefill</code> 控制 prefill 分块大小）。
         没有 <code>can_schedule()</code> 方法 — 可调度性由 <code>allocate_slots</code> 返回 None 决定，触发抢占或循环退出。
+      </Callout>
+
+      {/* ==================== 3.5. 抢占机制详解 ==================== */}
+      <div className="section-divider"><span>抢占机制详解</span></div>
+      <p>当 KV Cache block 不足时，vLLM 需要<strong>抢占</strong>部分正在运行的请求以释放显存。vLLM V1 支持两种抢占策略：</p>
+
+      <h3>PRIORITY 策略（默认）</h3>
+      <p>按优先级排序，<strong>抢占优先级最低的请求</strong>。优先级通过 <code>request.priority</code> 设置，值越小优先级越高（0 最高）。</p>
+
+      <CodeBlock language="python" title="PRIORITY 抢占逻辑" code={`def _preempt_request(self) -> Optional[Request]:
+    """抢占优先级最低的请求"""
+    if self.policy == PreemptionPolicy.PRIORITY:
+        # 按优先级排序，取最低的
+        self.running.sort(key=lambda r: r.priority, reverse=True)
+        # 跳过无法被抢占的请求（如已完成 prefill 但未进入 decode 的）
+        for req in self.running:
+            if req.num_computed_tokens > 0:  # 至少完成了一些 token
+                return req
+    return None
+
+# 被抢占请求的处理:
+# 1. num_computed_tokens = 0  (全量重算，不保留任何 KV Cache)
+# 2. 释放所有 KV blocks
+# 3. 回到 waiting 队列
+# 4. 下次重新从 token 0 开始 prefill`} />
+
+      <h3>FCFS 策略</h3>
+      <p><strong>后进先出（LIFO）</strong>：按请求到达时间排序，<strong>抢占最后到达的请求</strong>。类似栈弹出，后入队的先被抢占。</p>
+
+      <CodeBlock language="python" title="FCFS 抢占逻辑" code={`def _preempt_request(self) -> Optional[Request]:
+    """FCFS 抢占最后到达的请求"""
+    if self.policy == PreemptionPolicy.FCFS:
+        # 按到达时间排序，取最新的
+        self.running.sort(key=lambda r: r.arrival_time, reverse=True)
+        for req in self.running:
+            if req.num_computed_tokens > 0:
+                return req
+    return None`} />
+
+      <h3>抢占流程</h3>
+      <MermaidDiagram chart={`
+sequenceDiagram
+    participant S as Scheduler
+    participant R1 as Req A (running)
+    participant R2 as Req B (running)
+    participant BP as BlockPool
+
+    Note over S,BP: Step 1: 分配失败，触发抢占
+    S->>S: allocate_slots(req) 返回 None
+    S->>S: 选择抢占目标 (PRIORITY/FCFS)
+    S->>R2: 标记 Req B 为被抢占
+    S->>BP: 释放 Req B 的 KV blocks
+    BP->>BP: ref_cnt-- 每个 block
+    BP->>BP: ref_cnt==0 → free_block_queue
+
+    Note over S,BP: Step 2: 重试分配
+    S->>BP: 重新为 Req A 分配 blocks
+    BP-->>S: 分配成功
+
+    Note over S,BP: Step 3: 被抢占请求回到 waiting
+    S->>R2: num_computed_tokens=0
+    S->>R2: 回到 waiting 队列
+    Note over R2: 下次重新 prefill (全量重算)
+      `} />
+
+      <h3>抢占 vs 交换策略对比</h3>
+      <table>
+        <thead><tr><th>策略</th><th>核心思想</th><th>KV Cache 处理</th><th>恢复成本</th><th>适用场景</th></tr></thead>
+        <tbody>
+          <tr><td><strong>PRIORITY</strong></td><td>抢占低优先级请求</td><td>直接释放 KV blocks</td><td>全量重算（高）</td><td>在线服务，有优先级区分</td></tr>
+          <tr><td><strong>FCFS</strong></td><td>抢占最新到达的请求</td><td>直接释放 KV blocks</td><td>全量重算（高）</td><td>批处理，公平性优先</td></tr>
+          <tr><td><strong>Swap (V0)</strong></td><td>KV Cache 换出到 CPU</td><td>GPU→CPU 拷贝，保留内容</td><td>CPU→GPU 拷贝（低）</td><td>V0 遗留，V1 已移除</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="warning">
+        <strong>注意：</strong>vLLM V1 <strong>不支持 SWAP 抢占</strong>（KV Cache 换出到 CPU 内存），仅支持 <strong>全量重算</strong>。
+        这意味着被抢占的请求需要从头开始 prefill，在长 prompt 场景下恢复成本较高。
+        选择 PRIORITY 策略时，确保重要请求设置较高优先级（值更小），不要被频繁抢占。
       </Callout>
 
       {/* ==================== 4. KV Cache 分配与调度 ==================== */}
@@ -347,6 +517,122 @@ class BlockPool:
         当空闲 block 不足时，LRU 淘汰缓存 block（<code>_maybe_evict_cached_block</code>）。
         <code>ref_cnt == 0</code> 时 block 才归还到 <code>free_block_queue</code>。
       </Callout>
+
+      {/* ==================== 4.5. Chunked Prefill 与 Prefix Caching 详解 ==================== */}
+      <div className="section-divider"><span>Chunked Prefill 详解</span></div>
+      <p>Chunked Prefill 是 vLLM 降低<strong>首 token 延迟（TTFT）</strong>的关键优化。它将长 prefill 请求拆分为多个小块，与 decode 请求交替执行，避免长 prefill 阻塞 decode。</p>
+
+      <h3>工作原理</h3>
+      <MermaidDiagram chart={`
+sequenceDiagram
+    participant S as Scheduler
+    participant R1 as Req A (prefill, 4096 tokens)
+    participant R2 as Req B (decode)
+    participant R3 as Req C (decode)
+
+    Note over S,R3: Step 1: Chunk 1 of Req A (2048 tokens) + Req B + Req C
+    S->>R1: prefill chunk 1 (tokens 0-2047)
+    S->>R2: decode 1 token
+    S->>R3: decode 1 token
+
+    Note over S,R3: Step 2: Chunk 2 of Req A (2048 tokens) + Req B + Req C
+    S->>R1: prefill chunk 2 (tokens 2048-4095)
+    S->>R2: decode 1 token
+    S->>R3: decode 1 token
+
+    Note over S,R3: Step 3: Req A enters decode phase
+    S->>R1: decode 1 token
+    S->>R2: decode 1 token
+    S->>R3: decode 1 token
+      `} />
+
+      <h3>Token Budget 控制</h3>
+      <p><code>max_num_batched_tokens</code> 控制每步处理的总 token 数上限。调度器根据此值决定每个 prefill 请求的分块大小：</p>
+      <CodeBlock language="python" title="Chunked Prefill 调度逻辑" code={`def schedule(self) -> SchedulerOutput:
+    # token_budget 决定每步能处理多少 token
+    token_budget = self.scheduler_config.max_num_batched_tokens
+
+    # Phase 1: 先调度 RUNNING (decode) 请求
+    for req in self.running:
+        num_new_tokens = 1  # decode 阶段每步只产 1 token
+        if self._allocate_slots(req, num_new_tokens):
+            token_budget -= num_new_tokens
+            scheduled.append(req)
+
+    # Phase 2: 调度 WAITING (prefill) 请求
+    for req in self.waiting:
+        remaining_tokens = len(req.prompt_token_ids) - req.num_computed_tokens
+        # 分块大小 = min(剩余 tokens, token_budget)
+        chunk_size = min(remaining_tokens, token_budget)
+        if self._allocate_slots(req, chunk_size):
+            token_budget -= chunk_size
+            scheduled.append(req)
+            if token_budget <= 0:
+                break  # budget 耗尽，剩余 prefill 下次再调度`} />
+
+      <table>
+        <thead><tr><th>参数</th><th>作用</th><th>建议值</th></tr></thead>
+        <tbody>
+          <tr><td><code>max_num_batched_tokens</code></td><td>每步最大 token 处理量</td><td>8192 (A100) / 4096 (A10)</td></tr>
+          <tr><td><code>--enable-chunked-prefill</code></td><td>启用分块 prefill</td><td>True（在线服务推荐）</td></tr>
+          <tr><td><code>--max-num-seqs</code></td><td>最大并发请求数</td><td>256</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="tip">
+        <strong>不启用 Chunked Prefill 的后果：</strong>一个 32K token 的 prefill 请求会占用 GPU 数秒，期间所有 decode 请求都被阻塞，
+        导致 TTFT 从毫秒级飙升到秒级。启用后，prefill 被分成 ~4 个 8K 块，与 decode 交替执行，TTFT 显著降低。
+      </Callout>
+
+      {/* ==================== 4.6. Prefix Caching 详细机制 ==================== */}
+      <div className="section-divider"><span>Prefix Caching 详细机制</span></div>
+      <p>前缀缓存是 vLLM 在多轮对话和批处理场景下的<strong>核心加速</strong>手段。相同的 prompt 前缀只需计算一次 KV Cache，后续请求直接复用。</p>
+
+      <h3>哈希计算</h3>
+      <CodeBlock language="python" title="Block Hash 计算" code={`def hash_block_tokens(parent_hash: int,
+                        curr_tokens: list[int],
+                        extra_keys: Any = None) -> int:
+    """计算 block 的哈希值
+
+    使用链式哈希: hash_n = SHA256(hash_{n-1} + tokens_n + extra_keys)
+    链式设计确保: 相同前缀的 block 哈希相同
+    """
+    hasher = hashlib.sha256()
+    hasher.update(parent_hash.to_bytes(32, 'little'))
+    for token in curr_tokens:
+        hasher.update(token.to_bytes(4, 'little'))
+    if extra_keys is not None:
+        hasher.update(str(extra_keys).encode())
+    # 取前 8 字节作为 64-bit hash (碰撞概率极低)
+    return int.from_bytes(hasher.digest()[:8], 'little')`} />
+
+      <h3>三级查找流程</h3>
+      <ol>
+        <li><strong>BlockHashToBlockMap 查找</strong>：O(1) 哈希表查找，key = block_hash</li>
+        <li><strong>Token 二次验证</strong>：哈希匹配后，逐 token 比对确认（防止哈希碰撞）</li>
+        <li><strong>最长前缀匹配</strong>：从第一个 block 开始链式查找，直到第一个不匹配的 block</li>
+      </ol>
+
+      <h3>碰撞处理</h3>
+      <table>
+        <thead><tr><th>场景</th><th>处理方式</th></tr></thead>
+        <tbody>
+          <tr><td>哈希碰撞（不同内容相同 hash）</td><td>Token 二次验证失败 → 视为未命中，分配新 block</td></tr>
+          <tr><td>多 LoRA 前缀冲突</td><td><code>extra_keys</code> 包含 LoRA ID，区分不同适配器</td></tr>
+          <tr><td>多模态输入</td><td><code>extra_keys</code> 包含 <code>multi_modal_hash</code>，区分不同图像</td></tr>
+        </tbody>
+      </table>
+
+      <h3>缓存命中率影响因素</h3>
+      <table>
+        <thead><tr><th>因素</th><th>影响</th><th>优化建议</th></tr></thead>
+        <tbody>
+          <tr><td>Block 大小</td><td>越小命中率越高，但管理开销更大</td><td>默认 16 tokens，通常无需调整</td></tr>
+          <tr><td>System Prompt</td><td>固定 system prompt 可完全命中</td><td>使用相同 system prompt 提升命中率</td></tr>
+          <tr><td>多轮对话</td><td>每轮命中前一整轮的 KV Cache</td><td>天然适合多轮对话场景</td></tr>
+          <tr><td>KV Cache 容量</td><td>容量不足时 LRU 淘汰旧缓存</td><td>增大 gpu_memory_utilization</td></tr>
+        </tbody>
+      </table>
 
       {/* ==================== 5. Worker / GPUModelRunner 模型执行 ==================== */}
       <div className="section-divider"><span>Worker / GPUModelRunner 模型执行</span></div>
@@ -441,6 +727,136 @@ sequenceDiagram
           <tr><td><code>RayDistributedExecutor</code></td><td>多节点</td><td>基于 Ray 的分布式执行</td></tr>
         </tbody>
       </table>
+
+      {/* ==================== 5.5. 并行策略详解 ==================== */}
+      <div className="section-divider"><span>并行策略详解 (TP/PP/DP/EP/CP)</span></div>
+      <p>vLLM 支持五种并行策略，通过 <code>ParallelConfig</code> 配置。以下逐一分析每种策略的原理、实现和适用场景。</p>
+
+      <h3>1. Tensor Parallelism (TP) — 张量并行</h3>
+      <p><strong>最核心的并行策略</strong>，将每层权重矩阵沿行/列切分到多张 GPU 上，通过集合通信完成前向传播。vLLM 默认使用 Megatron-LM 风格的 TP。</p>
+
+      <MermaidDiagram chart={`
+graph LR
+    subgraph GPU0["GPU 0"]
+        A0["Column Linear 列切分"]
+        B0["All-Reduce 求和"]
+    end
+    subgraph GPU1["GPU 1"]
+        A1["Column Linear 列切分"]
+        B1["All-Reduce 求和"]
+    end
+    IN["Input f: D → D/h"] --> A0
+    IN --> A1
+    A0 --> B0
+    A1 --> B1
+    B0 --> OUT["Output 拼接"]
+    B1 --> OUT
+      `} />
+
+      <CodeBlock language="python" title="TP 核心通信原语" code={`# ColumnParallelLinear: 列切分 + All-Reduce
+class ColumnParallelLinear(nn.Module):
+    def forward(self, input_):
+        # gather_dim=0: 每张 GPU 处理一部分列
+        output = F.linear(input_, self.weight)  # weight: [out//tp, in]
+        # All-Reduce 求和，将多 GPU 的部分结果合并
+        output = tensor_model_parallel_all_reduce(output)
+        return output
+
+# RowParallelLinear: 行切分 + All-Reduce (后置)
+class RowParallelLinear(nn.Module):
+    def forward(self, input_):
+        # input 已经按列切分，每张 GPU 独立计算
+        output = F.linear(input_, self.weight)  # weight: [out, in//tp]
+        output = tensor_model_parallel_all_reduce(output)
+        return output
+
+# 通信开销: 每个 Transformer 层 2 次 All-Reduce
+# - Attention: 1 次 (output projection)
+# - MLP: 1 次 (down projection)`} />
+
+      <h3>2. Pipeline Parallelism (PP) — 流水线并行</h3>
+      <p>将模型按层切分到多组 GPU，每组 GPU 负责若干连续层。通过 <strong>Micro-Batch</strong> 流水线实现 GPU 利用率最大化。</p>
+
+      <table>
+        <thead><tr><th>参数</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>--pipeline-parallel-size</code></td><td>PP 组大小，模型分成几段</td></tr>
+          <tr><td><code>--max-pipeline-stage-size</code></td><td>每段最多多少层</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="info">
+        <strong>PP 的 Bubble 问题：</strong>流水线启动和排空阶段，部分 GPU 空闲（"bubble"）。
+        Micro-batch 数量越多，bubble 占比越小，但内存占用越大。公式：bubble_ratio ≈ (pp_size - 1) / num_microbatches。
+      </Callout>
+
+      <h3>3. Data Parallelism (DP) — 数据并行</h3>
+      <p>vLLM <strong>在线服务场景</strong>下不使用传统 DP（不切分数据）。但 <strong>离线批处理</strong>（LLM class）下支持 DP：</p>
+      <ul>
+        <li>每张 GPU 持有完整模型权重</li>
+        <li>不同请求分发到不同 GPU 独立推理</li>
+        <li>适合吞吐优先的离线场景</li>
+      </ul>
+
+      <h3>4. Expert Parallelism (EP) — 专家并行</h3>
+      <p>MoE（Mixture of Experts）模型专用，将不同 Expert 分布到不同 GPU：</p>
+
+      <CodeBlock language="python" title="EP 实现" code={`# MoE 层: 每个 expert 可能在不同 GPU
+class MoELayer(nn.Module):
+    def forward(self, hidden_states):
+        # Router 决定每个 token 激活哪些 experts
+        router_logits = self.gate(hidden_states)
+        # top-k 选择
+        top_k_weights, top_k_indices = torch.topk(router_logits, self.top_k)
+
+        # 按 expert 分组，跨 GPU 通信
+        # 使用 all-to-all 将 token 分发到对应 expert 的 GPU
+        dispatched = all_to_all(hidden_states, top_k_indices)
+
+        # 每张 GPU 计算自己持有的 experts
+        output = self.experts(dispatched)
+
+        # all-to-all 将结果返回原 GPU
+        output = all_to_all(output, reverse=True)
+        return output
+
+# 通信开销: 2 次 All-to-All (分发 + 回收)`} />
+
+      <h3>5. Context Parallelism (CP) — 上下文并行</h3>
+      <p>将长序列的 token 切分到多张 GPU，每张 GPU 计算一部分上下文：</p>
+
+      <MermaidDiagram chart={`
+graph TB
+    subgraph Tokens["输入序列 (8192 tokens)"]
+        T0["GPU 0: tokens 0-4095"]
+        T1["GPU 1: tokens 4096-8191"]
+    end
+    subgraph Compute["计算"]
+        C0["Attention (local)"]
+        C1["Attention (local)"]
+    end
+    T0 --> C0
+    T1 --> C1
+    C0 --> R0["Ring Attention: P2P 传递 KV"]
+    C1 --> R0
+    R0 --> O["合并输出"]
+      `} />
+
+      <h3>并行策略组合矩阵</h3>
+      <table>
+        <thead><tr><th>组合</th><th>总 GPU 数</th><th>通信模式</th><th>适用场景</th></tr></thead>
+        <tbody>
+          <tr><td><strong>纯 TP</strong></td><td>tp_size</td><td>All-Reduce (每层 2 次)</td><td>单机多卡，GPU 间 NVLink 高带宽</td></tr>
+          <tr><td><strong>TP + PP</strong></td><td>tp_size × pp_size</td><td>All-Reduce + P2P Send/Recv</td><td>超大模型，单机放不下</td></tr>
+          <tr><td><strong>TP + EP</strong></td><td>tp_size × ep_size</td><td>All-Reduce + All-to-All</td><td>MoE 模型 (如 Mixtral 8x7B)</td></tr>
+          <tr><td><strong>TP + CP</strong></td><td>tp_size × cp_size</td><td>All-Reduce + Ring P2P</td><td>超长上下文 (128K+ tokens)</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="warning">
+        <strong>TP 通信开销：</strong>TP 每层产生 2 次 All-Reduce 通信。TP 超过 8 时，通信开销可能超过计算收益。
+        对于 70B+ 模型，推荐 TP=8 + PP=2 而非 TP=16，以降低跨节点通信开销。
+      </Callout>
 
       {/* ==================== 6. 采样业务 ==================== */}
       <div className="section-divider"><span>采样业务 (Sampler)</span></div>
@@ -797,6 +1213,120 @@ classDiagram
           <tr><td>异步调度优化</td><td>两步执行 (execute_model 返回 None + sample_tokens)，调度与采样重叠</td></tr>
         </tbody>
       </table>
+
+      {/* ==================== 11.5. 内存管理详解 ==================== */}
+      <div className="section-divider"><span>内存管理详解</span></div>
+      <p>vLLM 的内存管理分为<strong>启动时静态分配</strong>和<strong>运行时动态管理</strong>两个阶段。理解内存布局和 KV Cache 计算是调优推理性能的关键。</p>
+
+      <h3>GPU 显存布局</h3>
+      <MermaidDiagram chart={`
+graph TB
+    subgraph MEM["GPU 显存总容量"]
+        W["模型权重 ~30%<br/>Qwen2-7B: ~14GB (FP16)"]
+        KV["KV Cache ~60%<br/>可配置, 动态管理"]
+        O["其他 ~10%<br/>激活值/临时buffer/CUDA Graph"]
+    end
+    W --> KV --> O
+      `} />
+
+      <h3>启动时内存分配</h3>
+      <CodeBlock language="python" title="GPU 内存初始化" code={`def determine_num_available_blocks(self) -> int:
+    """计算可用于 KV Cache 的 block 数量"""
+    # 1. 获取 GPU 总显存
+    total_gpu_memory = torch.cuda.get_device_properties(0).total_memory
+
+    # 2. 计算不可用显存（模型权重 + 激活值 + CUDA Graph）
+    peak_memory = self.profile_run()  # 跑一次 dummy 推理，记录峰值显存
+    # peak_memory 包含:
+    #   - 模型权重 (model.parameters)
+    #   - 优化器状态 (推理时为空)
+    #   - 激活值 (前向传播中间结果)
+    #   - CUDA Graph 显存
+
+    # 3. 计算可用于 KV Cache 的显存
+    available_memory = int(
+        total_gpu_memory * self.cache_config.gpu_memory_utilization
+    ) - peak_memory
+
+    # 4. 计算 block 数量
+    cache_block_size = self.get_cache_block_size_bytes()
+    # cache_block_size = block_size × num_layers × 2(KV) × num_kv_heads × head_size × dtype_size
+    num_blocks = available_memory // cache_block_size
+    return num_blocks`} />
+
+      <h3>KV Cache 大小计算</h3>
+      <Callout type="tip">
+        <strong>KV Cache 显存公式：</strong><br/>
+        <code>KV_Cache_Size = 2 × num_layers × num_kv_heads × head_dim × max_model_len × dtype_size × (1 / gqa_ratio)</code><br/><br/>
+        <strong>Qwen2-7B 示例 (FP16)：</strong><br/>
+        <code>2 × 28 × 4 × 128 × 32768 × 2 = ~1.8 GB</code> (单请求，32768 tokens)<br/>
+        实际分配考虑 <code>gpu_memory_utilization=0.9</code> 和 <strong>block 粒度</strong>（默认 16 token/block）
+      </Callout>
+
+      <h3>Qwen2-7B 单卡 A100 80G 显存计算示例</h3>
+      <table>
+        <thead><tr><th>显存项</th><th>大小</th><th>占比</th></tr></thead>
+        <tbody>
+          <tr><td>模型权重 (FP16)</td><td>~14 GB</td><td>17.5%</td></tr>
+          <tr><td>KV Cache (max_model_len=32768, block_size=16)</td><td>~48 GB</td><td>60%</td></tr>
+          <tr><td>激活值 + CUDA Graph + 临时 buffer</td><td>~8 GB</td><td>10%</td></tr>
+          <tr><td><strong>预留余量</strong></td><td>~10 GB</td><td>12.5%</td></tr>
+          <tr><td><strong>总计</strong></td><td><strong>~80 GB</strong></td><td><strong>100%</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h3>运行时内存管理</h3>
+      <p>运行时通过 <strong>BlockPool</strong> 动态管理 KV Cache block：</p>
+
+      <CodeBlock language="python" title="BlockPool 运行时管理" code={`class BlockPool:
+    """KV Cache 块池，管理 block 的分配与回收"""
+
+    def __init__(self, num_blocks: int):
+        self.free_blocks = list(range(num_blocks))  # 空闲 block 队列
+        self.ref_counts = [0] * num_blocks          # 每个 block 的引用计数
+
+    def allocate(self, num_blocks: int) -> list[int]:
+        """分配 num_blocks 个 block"""
+        if len(self.free_blocks) < num_blocks:
+            raise OutOfMemoryError("No free blocks")
+        allocated = []
+        for _ in range(num_blocks):
+            block_id = self.free_blocks.pop(0)
+            self.ref_counts[block_id] = 1
+            allocated.append(block_id)
+        return allocated
+
+    def free(self, block_ids: list[int]):
+        """释放 block (ref_cnt-- → 0 时归还)"""
+        for bid in block_ids:
+            self.ref_counts[bid] -= 1
+            if self.ref_counts[bid] == 0:
+                self.free_blocks.append(bid)
+
+    def add_ref(self, block_id: int):
+        """增加引用 (前缀缓存命中时)"""
+        self.ref_counts[block_id] += 1`} />
+
+      <h3>内存碎片与利用率</h3>
+      <table>
+        <thead><tr><th>场景</th><th>无 PagedAttention</th><th>PagedAttention</th></tr></thead>
+        <tbody>
+          <tr><td>内存利用率</td><td>~25% (大量内部碎片)</td><td>~99% (block 粒度管理)</td></tr>
+          <tr><td>碎片来源</td><td>每请求预分配 max_model_len 连续内存</td><td>按需分配 block，无连续性要求</td></tr>
+          <tr><td>最大并发</td><td>受限于每请求的最大内存</td><td>受限于总 block 数 × block_size</td></tr>
+          <tr><td>共享能力</td><td>无共享</td><td>前缀缓存共享，ref_cnt 管理</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="warning">
+        <strong>内存溢出排查：</strong>
+        <ol>
+          <li>检查 <code>gpu_memory_utilization</code>：默认 0.9，如果 OOM 可降低到 0.8</li>
+          <li>检查 <code>max_model_len</code>：过大会预分配过多 KV Cache block</li>
+          <li>检查 <code>max_num_seqs</code>：并发请求过多导致 block 耗尽</li>
+          <li>使用 <code>--enforce-eager</code> 禁用 CUDA Graph 节省显存（但会降低吞吐）</li>
+        </ol>
+      </Callout>
 
       {/* ==================== 12. 设计原则 ==================== */}
       <div className="section-divider"><span>设计原则</span></div>
