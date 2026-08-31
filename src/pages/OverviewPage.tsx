@@ -4,11 +4,17 @@ import { Callout, ResourceTable } from '../components/CodeBlock';
 export function OverviewPage() {
   return (
     <div className="prose max-w-none">
-      <h1>📊 总体架构概览</h1>
+      {/* Page Header */}
+      <h1>总体架构概览</h1>
+      <div className="page-meta">
+        <span className="page-meta-item">📅 更新于 2026-08</span>
+        <span className="page-meta-item">⏱️ 阅读约 15 分钟</span>
+        <span className="page-meta-item">🏷️ 架构 · 对比</span>
+      </div>
       <p>LLM 推理框架遵循相似的分层架构，但在关键模块的设计上各有创新。以下按框架逐一分析，再从整体维度横向对比。</p>
 
       {/* ==================== 1. 通用推理架构 ==================== */}
-      <h2>🏗️ 通用推理架构</h2>
+      <div className="section-divider"><span>通用推理架构</span></div>
       <p>所有 LLM 推理框架都遵循以下分层架构。请求从客户端经过 API 服务层进入调度器，经过 KV Cache 管理后被分发到硬件后端执行模型推理。</p>
       <MermaidDiagram chart={`
 flowchart TB
@@ -44,7 +50,7 @@ flowchart TB
       `} />
 
       {/* ==================== 2. 框架总览 ==================== */}
-      <h2>📋 框架总览</h2>
+      <div className="section-divider"><span>框架总览</span></div>
       <table>
         <thead><tr><th>维度</th><th>vLLM</th><th>vLLM-Ascend</th><th>nano-vLLM-NPU</th><th>SGLang</th></tr></thead>
         <tbody>
@@ -60,8 +66,8 @@ flowchart TB
         </tbody>
       </table>
 
-      {/* ==================== 3. vLLM ==================== */}
-      <h2>⚡ vLLM</h2>
+      {/* ==================== 3. 各框架详解 ==================== */}
+      <div className="section-divider"><span>vLLM</span></div>
 
       <h3>核心架构</h3>
       <p>vLLM V1 采用<strong>多进程三层架构</strong>：Frontend（API/LLM 进程）通过 ZMQ 与 Engine Core（调度 + KV Cache 管理）通信，Engine Core 驱动 GPU Worker 执行模型推理。</p>
@@ -72,7 +78,7 @@ flowchart TB
         <li><strong>Continuous Batching</strong>：动态批处理，prefill 和 decode 自由混合调度</li>
         <li><strong>前缀缓存</strong>：sha256 链式哈希 + BlockHashToBlockMap + 完整 LRU 淘汰</li>
         <li><strong>三步调度</strong>：Phase 1 调度 RUNNING → Phase 2 调度 WAITING → Phase 3 终态化</li>
-        <li><strong>两步执行</strong>：execute_model 返回 None（采样推迟）+ sample_tokens 完成采样，调度与采样重叠</li>
+        <li><strong>两步执行</strong>：execute_model 返回 None（采样推迟）+ sample_tokens 完成采样</li>
       </ul>
 
       <h3>核心模块</h3>
@@ -94,8 +100,7 @@ flowchart TB
         <li>✅ 量化部署（FP8/INT8/INT4/AWQ/GPTQ）</li>
       </ul>
 
-      {/* ==================== 4. vLLM-Ascend ==================== */}
-      <h2>🔌 vLLM-Ascend</h2>
+      <div className="section-divider"><span>vLLM-Ascend</span></div>
 
       <h3>核心架构</h3>
       <p>vLLM-Ascend 是 vLLM 的<strong>硬件可插拔插件</strong>，通过 RFC 定义的插件接口将华为 Ascend NPU 适配到 vLLM 推理框架。核心代码与 vLLM 主仓库解耦，运行时通过插件接口加载。</p>
@@ -125,8 +130,7 @@ flowchart TB
         <li>✅ 主流 Transformer / MoE 模型推理</li>
       </ul>
 
-      {/* ==================== 5. nano-vLLM-NPU ==================== */}
-      <h2>🧪 nano-vLLM-NPU</h2>
+      <div className="section-divider"><span>nano-vLLM-NPU</span></div>
 
       <h3>核心架构</h3>
       <p>nano-vLLM-NPU 是 vLLM 核心概念的<strong>独立精简重实现</strong>（非 fork），约 1,915 行、23 个文件。<strong>单进程同步架构</strong>：rank 0 集调度和执行于一身，其他 rank 通过 mp.Process + SharedMemory + Event 锁步并行。</p>
@@ -160,8 +164,7 @@ flowchart TB
         <li>⚠️ 不适合生产级在线服务（无流式、无跨请求 batching）</li>
       </ul>
 
-      {/* ==================== 6. SGLang ==================== */}
-      <h2>🚀 SGLang</h2>
+      <div className="section-divider"><span>SGLang</span></div>
 
       <h3>核心架构</h3>
       <p>SGLang 采用<strong>前端接入 → 推理引擎 → 执行层</strong>三层架构，最大的特色是 RadixAttention 前缀缓存和 Rust 零开销调度器。支持 Prefill-Decode 分离部署，允许为两个阶段使用不同配置的 GPU 池。</p>
@@ -193,8 +196,8 @@ flowchart TB
         <li>✅ 大规模生产部署（40 万+ GPU）</li>
       </ul>
 
-      {/* ==================== 7. 请求生命周期 ==================== */}
-      <h2>🔄 请求生命周期对比</h2>
+      {/* ==================== 请求生命周期 ==================== */}
+      <div className="section-divider"><span>请求生命周期对比</span></div>
       <MermaidDiagram chart={`
 sequenceDiagram
     participant C as Client
@@ -219,10 +222,10 @@ sequenceDiagram
     A-->>C: Stream response
       `} />
 
-      {/* ==================== 8. 核心模块横向对比 ==================== */}
-      <h2>🧩 核心模块横向对比</h2>
+      {/* ==================== 核心模块横向对比 ==================== */}
+      <div className="section-divider"><span>核心模块横向对比</span></div>
 
-      <h3>1. KV Cache 管理</h3>
+      <h3>KV Cache 管理</h3>
       <table>
         <thead><tr><th>框架</th><th>机制</th><th>哈希算法</th><th>碰撞防护</th><th>LRU 淘汰</th><th>Block 大小</th></tr></thead>
         <tbody>
@@ -233,7 +236,7 @@ sequenceDiagram
         </tbody>
       </table>
 
-      <h3>2. 调度策略</h3>
+      <h3>调度策略</h3>
       <table>
         <thead><tr><th>框架</th><th>调度算法</th><th>实现语言</th><th>阶段</th><th>抢占策略</th></tr></thead>
         <tbody>
@@ -244,7 +247,7 @@ sequenceDiagram
         </tbody>
       </table>
 
-      <h3>3. 硬件抽象</h3>
+      <h3>硬件抽象</h3>
       <table>
         <thead><tr><th>框架</th><th>抽象方式</th><th>代码量</th><th>扩展方式</th><th>支持平台</th></tr></thead>
         <tbody>
@@ -255,7 +258,7 @@ sequenceDiagram
         </tbody>
       </table>
 
-      <h3>4. 进程架构</h3>
+      <h3>进程架构</h3>
       <table>
         <thead><tr><th>框架</th><th>架构模式</th><th>进程间通信</th><th>特点</th></tr></thead>
         <tbody>

@@ -4,7 +4,12 @@ import { MermaidDiagram } from '../components/MermaidDiagram';
 export function AttentionCloseReadingPage() {
   return (
     <div className="prose max-w-none">
-      <h1>🧠 Attention Is All You Need (Transformer) 论文精读</h1>
+      <h1>Attention Is All You Need (Transformer) 论文精读</h1>
+      <div className="page-meta">
+        <span className="page-meta-item">📅 更新于 2026-08</span>
+        <span className="page-meta-item">⏱️ 阅读约 30 分钟</span>
+        <span className="page-meta-item">🏷️ 论文精读 · Attention · Transformer</span>
+      </div>
       <p>
         <strong>原文作者：</strong>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
         Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin

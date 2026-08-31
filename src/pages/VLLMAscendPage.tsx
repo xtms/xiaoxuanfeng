@@ -4,7 +4,12 @@ import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/C
 export function VLLMAscendPage() {
   return (
     <div className="prose max-w-none">
-      <h1>🔌 vLLM-Ascend</h1>
+      <h1>vLLM-Ascend</h1>
+      <div className="page-meta">
+        <span className="page-meta-item">📅 更新于 2026-08</span>
+        <span className="page-meta-item">⏱️ 阅读约 10 分钟</span>
+        <span className="page-meta-item">🏷️ 硬件插件 · Ascend NPU</span>
+      </div>
       <p>
         vLLM-Ascend 是 vLLM 的<strong>社区维护硬件插件</strong>，通过 vLLM 的硬件可插拔接口（RFC: Hardware Pluggable），
         将 vLLM 的推理能力带到华为 Ascend NPU。它使用 CANN（Compute Architecture for Neural Networks）替代 CUDA 工具链。
@@ -15,7 +20,7 @@ export function VLLMAscendPage() {
         <ExternalLink href="https://quay.io/ascend/vllm-ascend" label="Docker 镜像" />
       </div>
 
-      <h2>🏗️ 架构设计</h2>
+      <div className="section-divider"><span>架构设计</span></div>
       <p>核心设计理念：<strong>硬件可插拔（Hardware Pluggable）</strong>。Ascend 适配代码完全在独立仓库中，不与 vLLM 核心代码耦合。</p>
 
       <MermaidDiagram chart={`
@@ -58,7 +63,7 @@ flowchart TB
   CANN --> HW
       `} />
 
-      <h2>📦 软件栈对比</h2>
+      <div className="section-divider"><span>软件栈对比</span></div>
       <table>
         <thead><tr><th>组件</th><th>CUDA vLLM</th><th>vLLM-Ascend</th></tr></thead>
         <tbody>
@@ -70,7 +75,7 @@ flowchart TB
         </tbody>
       </table>
 
-      <h2>🔌 硬件可插拔接口</h2>
+      <div className="section-divider"><span>硬件可插拔接口</span></div>
       <p>vLLM 社区通过 RFC 提出了硬件可插拔接口，将硬件相关的实现抽象为接口。vLLM-Ascend 是实现这些接口的 Ascend 后端。</p>
       <CodeBlock language="python" title="插件结构" code={`vllm_ascend/
 ├── __init__.py          # 插件入口，注册 Ascend 平台
@@ -85,7 +90,7 @@ cmake/                   # 构建配置
 Dockerfile*              # 多硬件变体镜像`} />
       <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/vllm-project/vllm-ascend" target="_blank" rel="noreferrer">github.com/vllm-project/vllm-ascend</a></div>
 
-      <h2>🔄 请求处理流程</h2>
+      <div className="section-divider"><span>请求处理流程</span></div>
       <MermaidDiagram chart={`
 sequenceDiagram
     participant C as Client
@@ -111,7 +116,7 @@ sequenceDiagram
     V-->>C: Stream response
       `} />
 
-      <h2>📁 仓库结构</h2>
+      <div className="section-divider"><span>仓库结构</span></div>
       <table>
         <thead><tr><th>目录</th><th>作用</th></tr></thead>
         <tbody>
@@ -124,7 +129,7 @@ sequenceDiagram
         </tbody>
       </table>
 
-      <h2>🎯 关键差异</h2>
+      <div className="section-divider"><span>关键差异</span></div>
       <ol>
         <li><strong>解耦插件模型</strong>：Ascend 代码隔离在独立仓库，不侵入 vLLM 核心</li>
         <li><strong>CANN 替代 CUDA</strong>：所有计算内核使用华为 CANN 运行时</li>

@@ -4,7 +4,12 @@ import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/C
 export function SGLangPage() {
   return (
     <div className="prose max-w-none">
-      <h1>🚀 SGLang</h1>
+      <h1>SGLang</h1>
+      <div className="page-meta">
+        <span className="page-meta-item">📅 更新于 2026-08</span>
+        <span className="page-meta-item">⏱️ 阅读约 25 分钟</span>
+        <span className="page-meta-item">🏷️ 引擎 · RadixAttention · Rust</span>
+      </div>
       <p>
         SGLang 是 LMSYS Org 开发的高性能 LLM 推理框架，以 <strong>RadixAttention</strong>（前缀缓存）和
         <strong>零开销 CPU 调度器</strong> 闻名。源码规模约 20 万行（1718 个 Python 文件 + 3 个 Rust crate），

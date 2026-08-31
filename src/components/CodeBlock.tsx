@@ -60,27 +60,21 @@ export function CodeBlock({ code, language, title }: Props) {
   );
 }
 
-export function Callout({ type, children }: { type: 'info' | 'warning' | 'tip'; children: React.ReactNode }) {
-  const colors = {
-    info: { bg: 'rgba(99,102,241,0.1)', border: '#6366f1', icon: '💡' },
-    warning: { bg: 'rgba(245,158,11,0.1)', border: '#f59e0b', icon: '⚠️' },
-    tip: { bg: 'rgba(34,197,94,0.1)', border: '#22c55e', icon: '✅' },
-  };
-  const c = colors[type];
+export function Callout({ type, children }: { type: 'info' | 'warning' | 'tip' | 'danger'; children: React.ReactNode }) {
+  const icons = { info: '💡', warning: '⚠️', tip: '✅', danger: '🚫' };
+  const titles = { info: '信息', warning: '注意', tip: '提示', danger: '警告' };
   return (
-    <div className="my-4 p-4 rounded-lg" style={{ background: c.bg, borderLeft: `3px solid ${c.border}` }}>
-      <div className="flex gap-2 items-start">
-        <span>{c.icon}</span>
-        <div className="text-sm" style={{ color: 'var(--text2)' }}>{children}</div>
-      </div>
+    <div className={`callout callout-${type}`}>
+      <div className="callout-title">{icons[type]} {titles[type]}</div>
+      <div>{children}</div>
     </div>
   );
 }
 
 export function ExternalLink({ href, label }: { href: string; label: string }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="tag hover:text-white" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
-      🔗 {label}
+    <a href={href} target="_blank" rel="noreferrer" className="tag tag-accent no-underline" style={{ fontSize: '0.82rem' }}>
+      {label} ↗
     </a>
   );
 }

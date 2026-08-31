@@ -4,10 +4,15 @@ import { Callout, ResourceTable } from '../components/CodeBlock';
 export function ComparisonPage() {
   return (
     <div className="prose max-w-none">
-      <h1>🔍 框架对比</h1>
+      <h1>框架对比</h1>
+      <div className="page-meta">
+        <span className="page-meta-item">📅 更新于 2026-08</span>
+        <span className="page-meta-item">⏱️ 阅读约 10 分钟</span>
+        <span className="page-meta-item">🏷️ 对比 · 选型</span>
+      </div>
       <p>从架构设计、KV Cache 管理、调度策略、硬件支持等多个维度进行横向对比。</p>
 
-      <h2>📊 综合对比</h2>
+      <div className="section-divider"><span>综合对比</span></div>
       <table>
         <thead><tr><th>维度</th><th>vLLM</th><th>vLLM-Ascend</th><th>nano-vLLM-NPU</th><th>SGLang</th></tr></thead>
         <tbody>
@@ -24,7 +29,7 @@ export function ComparisonPage() {
         </tbody>
       </table>
 
-      <h2>🧠 KV Cache 管理对比</h2>
+      <div className="section-divider"><span>KV Cache 管理对比</span></div>
       <MermaidDiagram chart={`
 flowchart LR
   subgraph PAGE["PagedAttention (vLLM / nano-vLLM)"]
@@ -51,7 +56,7 @@ flowchart LR
         RadixAttention 进一步解决了<strong>前缀共享</strong>问题。两者可以结合使用。
       </Callout>
 
-      <h2>⚙️ 调度策略对比</h2>
+      <div className="section-divider"><span>调度策略对比</span></div>
       <table>
         <thead><tr><th>框架</th><th>调度算法</th><th>实现语言</th><th>特点</th></tr></thead>
         <tbody>
@@ -61,7 +66,7 @@ flowchart LR
         </tbody>
       </table>
 
-      <h2>🔧 硬件抽象方式对比</h2>
+      <div className="section-divider"><span>硬件抽象方式对比</span></div>
       <table>
         <thead><tr><th>框架</th><th>抽象方式</th><th>优点</th><th>缺点</th></tr></thead>
         <tbody>
@@ -72,7 +77,7 @@ flowchart LR
         </tbody>
       </table>
 
-      <h2>🎯 适用场景</h2>
+      <div className="section-divider"><span>适用场景</span></div>
       <table>
         <thead><tr><th>场景</th><th>推荐框架</th><th>原因</th></tr></thead>
         <tbody>
@@ -87,7 +92,7 @@ flowchart LR
         </tbody>
       </table>
 
-      <h2>📈 性能对比</h2>
+      <div className="section-divider"><span>性能对比</span></div>
       <p>基于 nano-vLLM 的 Qwen3-0.6B 基准测试（133,966 输出 tokens）：</p>
       <table>
         <thead><tr><th>引擎</th><th>硬件</th><th>吞吐量 (tokens/s)</th></tr></thead>
@@ -104,7 +109,7 @@ flowchart LR
         而启用优化后可达 3,954 tokens/s，说明 NPU 的算子融合和图编译对性能至关重要。
       </Callout>
 
-      <h2>🧩 技术栈对比</h2>
+      <div className="section-divider"><span>技术栈对比</span></div>
       <MermaidDiagram chart={`
 flowchart TB
   subgraph VLLM_STACK["vLLM 技术栈"]

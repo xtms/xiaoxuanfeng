@@ -4,7 +4,12 @@ import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/C
 export function VLLMPage() {
   return (
     <div className="prose max-w-none">
-      <h1>⚡ vLLM</h1>
+      <h1>vLLM</h1>
+      <div className="page-meta">
+        <span className="page-meta-item">📅 基于 releases/v0.23.0</span>
+        <span className="page-meta-item">⏱️ 阅读约 30 分钟</span>
+        <span className="page-meta-item">🏷️ 引擎 · 架构 · 调度</span>
+      </div>
       <p>
         vLLM 是 UC Berkeley Sky Computing Lab 开发的 LLM 推理引擎，以其 <strong>PagedAttention</strong> 创新闻名。
         它支持 200+ 模型架构，提供 OpenAI 兼容 API，是目前最流行的开源推理框架之一。
@@ -19,7 +24,7 @@ export function VLLMPage() {
       </div>
 
       {/* ==================== 1. 核心模块业务关系总览 ==================== */}
-      <h2>🏗️ 核心模块业务关系总览</h2>
+      <div className="section-divider"><span>核心模块业务关系总览</span></div>
       <p>
         vLLM 的系统架构遵循从请求入口到响应返回的<strong>管道式流程</strong>，按业务层次组织为以下子图：
       </p>
@@ -96,7 +101,7 @@ flowchart TB
       </table>
 
       {/* ==================== 2. 请求生命周期 ==================== */}
-      <h2>🔄 请求生命周期</h2>
+      <div className="section-divider"><span>请求生命周期</span></div>
 
       <h3>在线服务流程 (OpenAI API → AsyncLLM)</h3>
       <p>完整的在线推理请求处理流程，从客户端 HTTP 请求到 SSE 流式响应：</p>
@@ -182,7 +187,7 @@ print(outputs[0].outputs[0].text)`} />
       </Callout>
 
       {/* ==================== 3. EngineCore.step 内部流程 ==================== */}
-      <h2>⚙️ EngineCore.step 内部流程</h2>
+      <div className="section-divider"><span>EngineCore.step 内部流程</span></div>
       <p>这是 vLLM 最核心的繁忙循环，每次迭代经历调度 → 执行 → 采样 → 更新四个阶段：</p>
 
       <MermaidDiagram chart={`
@@ -257,7 +262,7 @@ sequenceDiagram
       </Callout>
 
       {/* ==================== 4. KV Cache 分配与调度 ==================== */}
-      <h2>🧠 KV Cache 分配与调度 (PagedAttention)</h2>
+      <div className="section-divider"><span>KV Cache 分配与调度 (PagedAttention)</span></div>
 
       <MermaidDiagram chart={`
 sequenceDiagram
@@ -344,7 +349,7 @@ class BlockPool:
       </Callout>
 
       {/* ==================== 5. Worker / GPUModelRunner 模型执行 ==================== */}
-      <h2>🚀 Worker / GPUModelRunner 模型执行</h2>
+      <div className="section-divider"><span>Worker / GPUModelRunner 模型执行</span></div>
 
       <h3>两步执行设计 (异步调度优化)</h3>
       <p>vLLM V1 将模型执行拆分为两步，使调度和采样可以重叠执行：</p>
@@ -438,7 +443,7 @@ sequenceDiagram
       </table>
 
       {/* ==================== 6. 采样业务 ==================== */}
-      <h2>🎲 采样业务 (Sampler)</h2>
+      <div className="section-divider"><span>采样业务 (Sampler)</span></div>
       <p><code>Sampler.forward</code> 内部采样严格按照以下顺序执行：</p>
 
       <ol>
@@ -466,7 +471,7 @@ sequenceDiagram
       </Callout>
 
       {/* ==================== 7. 配置业务 ==================== */}
-      <h2>⚙️ 配置业务 (VllmConfig)</h2>
+      <div className="section-divider"><span>配置业务 (VllmConfig)</span></div>
       <p>
         <code>VllmConfig</code> 聚合约 <strong>25 个子配置</strong>，所有层通过 <code>vllm_config</code> 读取参数化。
         <code>compute_hash()</code> 汇总所有子配置的哈希值用于缓存一致性校验。
@@ -492,7 +497,7 @@ sequenceDiagram
       <div className="text-xs mt-1" style={{ color: 'var(--text3)' }}>📄 源码: <a href="https://github.com/vllm-project/vllm/blob/main/vllm/config/vllm.py" target="_blank" rel="noreferrer">vllm/config/vllm.py</a></div>
 
       {/* ==================== 8. 类图 ==================== */}
-      <h2>📊 核心类图</h2>
+      <div className="section-divider"><span>核心类图</span></div>
 
       <h3>引擎层 (v1/engine/)</h3>
       <MermaidDiagram chart={`
@@ -732,7 +737,7 @@ classDiagram
       `} />
 
       {/* ==================== 9. 进程间通信 ==================== */}
-      <h2>📡 进程间通信汇总</h2>
+      <div className="section-divider"><span>进程间通信汇总</span></div>
       <table>
         <thead><tr><th>通信路径</th><th>机制</th><th>数据</th><th>相关文件</th></tr></thead>
         <tbody>
@@ -748,7 +753,7 @@ classDiagram
       </table>
 
       {/* ==================== 10. 核心类清单 ==================== */}
-      <h2>📋 核心类清单 (按模块)</h2>
+      <div className="section-divider"><span>核心类清单 (按模块)</span></div>
       <table>
         <thead><tr><th>模块</th><th>核心类</th><th>文件</th></tr></thead>
         <tbody>
@@ -776,7 +781,7 @@ classDiagram
       </table>
 
       {/* ==================== 11. 关键特性 ==================== */}
-      <h2>✨ 关键特性</h2>
+      <div className="section-divider"><span>关键特性</span></div>
       <table>
         <thead><tr><th>特性</th><th>说明</th></tr></thead>
         <tbody>
@@ -794,7 +799,7 @@ classDiagram
       </table>
 
       {/* ==================== 12. 设计原则 ==================== */}
-      <h2>🎯 设计原则</h2>
+      <div className="section-divider"><span>设计原则</span></div>
       <ul>
         <li><strong>VllmConfig 统一配置</strong>：所有类共享 VllmConfig（聚合 ~25 个子配置），新增功能只需添加配置项，<code>compute_hash()</code> 保证缓存一致性</li>
         <li><strong>统一模型构造器</strong>：所有模型使用相同的 <code>__init__(self, *, vllm_config, prefix="")</code> 签名</li>
