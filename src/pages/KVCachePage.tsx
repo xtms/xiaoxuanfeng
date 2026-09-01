@@ -81,7 +81,7 @@ graph LR
       <h3>核心思想</h3>
       <p>将 KV Cache 视为<strong>虚拟内存页</strong>：逻辑上连续的 token 序列映射到物理上不连续的 block 上。每个 block 存储固定数量 token 的 K、V 张量。</p>
 
-      <MermaidDiagram chart={`
+      <MermaidDiagram maxWidth={480} chart={`
 graph TB
     subgraph Logical["逻辑 KV Cache (请求视图)"]
         L["Token 0-15 | Token 16-31 | Token 32-47 | Token 48-63"]

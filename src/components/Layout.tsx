@@ -29,7 +29,15 @@ const sidebar: SidebarItem[] = [
   {
     label: '框架专题',
     children: [
-      { to: '/kv-cache', label: 'KV Cache' },
+      {
+        label: 'KV Cache',
+        children: [
+          { to: '/kv-cache', label: '概览' },
+          { to: '/sglang-kv-cache', label: 'SGLang KV Cache 机制' },
+          { to: '/vllm-kv-cache', label: 'vLLM KV Cache 机制' },
+          { to: '/kv-cache-compare', label: 'SGLang vs vLLM 对比' },
+        ],
+      },
       {
         label: 'KV Pool',
         children: [
@@ -99,7 +107,7 @@ export function Layout() {
   const location = useLocation();
 
   // 折叠/展开状态：默认全部折叠
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 'vLLM': true, '框架专题': true, 'KV Pool': true, 'Mooncake': true });
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 'vLLM': true, '框架专题': true, 'KV Cache': true, 'KV Pool': true, 'Mooncake': true });
 
   // 左侧边栏和右侧目录栏的显隐状态
   const [sidebarHidden, setSidebarHidden] = useState(false);
@@ -137,16 +145,8 @@ export function Layout() {
             )}
           </nav>
           <div className="px-5 py-4 border-t" style={{ borderColor: 'var(--sidebar-divider)' }}>
-            <p className="text-xs" style={{ color: 'var(--sidebar-group-text)' }}>外部资源</p>
-            <div className="mt-2 space-y-1">
-              <a href="https://github.com/vllm-project/vllm" target="_blank" rel="noreferrer" className="sidebar-link text-xs">vLLM GitHub</a>
-              <a href="https://github.com/vllm-project/vllm-ascend" target="_blank" rel="noreferrer" className="sidebar-link text-xs">vLLM-Ascend</a>
-              <a href="https://github.com/xtms/nano-vllm-npu" target="_blank" rel="noreferrer" className="sidebar-link text-xs">nano-vLLM</a>
-              <a href="https://github.com/sgl-project/sglang" target="_blank" rel="noreferrer" className="sidebar-link text-xs">SGLang GitHub</a>
-              <a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noreferrer" className="sidebar-link text-xs">Transformer 论文</a>
-              <a href="https://jalammar.github.io/illustrated-transformer/" target="_blank" rel="noreferrer" className="sidebar-link text-xs">Illustrated Transformer</a>
-              <a href="https://github.com/karpathy/nanoGPT" target="_blank" rel="noreferrer" className="sidebar-link text-xs">nanoGPT</a>
-            </div>
+            <p className="text-xs" style={{ color: 'var(--sidebar-group-text)' }}>LLM 推理框架</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--sidebar-text)' }}>学习指南</p>
           </div>
         </div>
         <button

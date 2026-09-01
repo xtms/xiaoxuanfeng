@@ -434,7 +434,7 @@ sequenceDiagram
       {/* ==================== 4. KV Cache 分配与调度 ==================== */}
       <div className="section-divider"><span>KV Cache 分配与调度 (PagedAttention)</span></div>
 
-      <MermaidDiagram chart={`
+      <MermaidDiagram maxWidth={480} chart={`
 sequenceDiagram
     participant S as Scheduler
     participant KM as KVCacheManager

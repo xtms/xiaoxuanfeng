@@ -634,7 +634,7 @@ pre code {
 .sidebar-sub {
   overflow: hidden;
   transition: max-height 0.25s ease, opacity 0.2s ease;
-  max-height: 300px;
+  max-height: 2000px;
   opacity: 1;
 }
 .sidebar-sub.collapsed {

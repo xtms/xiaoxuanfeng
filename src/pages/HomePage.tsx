@@ -215,6 +215,8 @@ export function HomePage() {
         <ResourceLink href="https://docs.sglang.io" label="SGLang 官方文档" />
         <ResourceLink href="https://arxiv.org/abs/2309.06180" label="PagedAttention 论文" />
         <ResourceLink href="https://arxiv.org/abs/1706.03762" label="Transformer 论文" />
+        <ResourceLink href="https://jalammar.github.io/illustrated-transformer/" label="Illustrated Transformer" />
+        <ResourceLink href="https://github.com/karpathy/nanoGPT" label="nanoGPT" />
       </div>
     </div>
   );

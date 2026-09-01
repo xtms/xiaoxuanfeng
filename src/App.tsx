@@ -20,6 +20,9 @@ import { KVPoolPage } from './pages/KVPoolPage';
 import { MemCachePage } from './pages/MemCachePage';
 import { MooncakeKVPoolPage } from './pages/MooncakeKVPoolPage';
 import { MooncakePage } from './pages/MooncakePage';
+import { SGLangKVCachePage } from './pages/SGLangKVCachePage';
+import { VLLMKVCachePage } from './pages/VLLMKVCachePage';
+import { KVCacheComparePage } from './pages/KVCacheComparePage';
 
 export default function App() {
   return (
@@ -46,6 +49,9 @@ export default function App() {
           <Route path="/memcache" element={<MemCachePage />} />
           <Route path="/mooncake-kvpool" element={<MooncakeKVPoolPage />} />
           <Route path="/mooncake" element={<MooncakePage />} />
+          <Route path="/sglang-kv-cache" element={<SGLangKVCachePage />} />
+          <Route path="/vllm-kv-cache" element={<VLLMKVCachePage />} />
+          <Route path="/kv-cache-compare" element={<KVCacheComparePage />} />
         </Route>
       </Routes>
     </BrowserRouter>
