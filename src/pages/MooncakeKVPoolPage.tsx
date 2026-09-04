@@ -18,7 +18,7 @@ export function MooncakeKVPoolPage() {
       <h3>HIXL + Mooncake 分层架构</h3>
       <p>Mooncake KVPool 在 Ascend 平台上由<strong>两层组件</strong>构成：底层 HIXL Engine 提供高性能单边通信，上层 LLM-DataDist 封装 KV Cache 语义。</p>
 
-      <MermaidDiagram maxWidth={520} chart={`
+      <MermaidDiagram maxWidth={360} chart={`
 graph TB
     subgraph Apps["推理框架"]
         VLLM["vllm-ascend"]

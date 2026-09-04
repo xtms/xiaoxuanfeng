@@ -4,904 +4,523 @@ import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
 export function MooncakePage() {
   return (
     <div className="prose max-w-none">
-      <h1>Mooncake</h1>
+      <h1>Mooncake 深度分析</h1>
       <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 25 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · Mooncake · P/D 分离</span>
+        <span className="page-meta-item">📅 更新于 2026-09</span>
+        <span className="page-meta-item">⏱️ 阅读约 35 分钟</span>
+        <span className="page-meta-item">🏷️ 专题 · Mooncake · P/D 分离 · KV Pool</span>
       </div>
-      <p>Mooncake 是月之暗面（Kimi）开源的<strong>以 KV Cache 为中心的分离式 LLM 推理架构</strong>，核心创新是将 Prefill 和 Decode 解耦到独立 GPU 集群，通过高速 KV Cache 传输层实现高效协同。已部署在 40 万+ GPU 的 Kimi 生产环境。</p>
+      <p>Mooncake 是月之暗面（Kimi）开源的<strong>以 KV Cache 为中心的分离式 LLM 推理架构</strong>，获 FAST 2025 最佳论文奖。本文基于源码（<code>/data/sd/Mooncake</code>）深度分析其架构设计、P/D 分离实现和 KV Pool 机制。</p>
 
-      {/* ==================== 1. 核心设计理念 ==================== */}
-      <div className="section-divider"><span>核心设计理念</span></div>
-
-      <h3>KVCache-Centric 架构</h3>
-      <p>Mooncake 的设计围绕一个核心洞察：<strong>KV Cache 是连接 Prefill 和 Decode 的唯一桥梁</strong>。将 KV Cache 的存储、传输和调度作为一等公民，而非附属功能。</p>
+      {/* ==================== 1. 整体架构 ==================== */}
+      <h2>整体架构</h2>
 
       <MermaidDiagram chart={`
 graph TB
-    subgraph Mooncake["Mooncake 架构"]
-        Master["Master Server<br/>全局调度 + 元数据"]
-
-        subgraph P_Pool["Prefill Pool"]
-            P1["Prefill GPU 0"]
-            P2["Prefill GPU 1"]
-        end
-
-        subgraph KV["KV Cache 传输层"]
-            T Engine["Transfer Engine<br/>RDMA/TCP 混合"]
-            Meta["元数据索引<br/>block 位置映射"]
-        end
-
-        subgraph D_Pool["Decode Pool"]
-            D1["Decode GPU 0"]
-            D2["Decode GPU 1"]
-            D3["Decode GPU 2"]
-        end
+    subgraph Apps["集成层 (mooncake-integration)"]
+        App_SGLang["SGLang HiCache"]
+        App_vLLM["vLLM Connector"]
+        App_TensorRT["TensorRT-LLM"]
+        App_LM["LMDeploy/LMCache"]
     end
 
-    Master --> P_Pool
-    Master --> D_Pool
-    P_Pool --> KV
-    KV --> D_Pool
-      `} maxWidth={520} />
+    subgraph Store["Mooncake Store (分布式 KV Pool)"]
+        Master["Master Server<br/>全局元数据 + 调度"]
+        Client["Store Client<br/>Put/Get/Remove/Pin"]
+        Alloc["Allocator Layer<br/>Cachelib / Offset"]
+        Replica["Replica Manager<br/>MEMORY / DISK / SSD"]
+    end
 
+    subgraph TE["Transfer Engine (传输层)"]
+        Engine["TransferEngine<br/>统一传输接口"]
+        Meta["TransferMetadata<br/>拓扑发现 + 路由"]
+        MT["MultiTransport<br/>协议聚合 + 故障转移"]
+    end
+
+    subgraph Transport["网络传输层"]
+        RDMA["RDMA<br/>RoCE/InfiniBand"]
+        TCP["TCP"]
+        NVLink["NVLink<br/>Intra-node"]
+        NVMe["NVMe-oF<br/>SSD 直通"]
+        CXL["CXL"]
+        Ascend["Ascend<br/>HCCS/HCCS-roce"]
+    end
+
+    subgraph EP["弹性专家并行 (mooncake-ep)"]
+        EP_Kernel["EP Kernel<br/>Dispatch/Combine"]
+        EP_PG["ProcessGroup<br/>容错 + 恢复"]
+    end
+
+    Apps --> Store
+    Store --> TE
+    TE --> Transport
+    EP_Kernel --> TE
+    EP_PG --> TE
+`} maxWidth={700} />
+
+      <p>源码仓库包含以下核心模块：</p>
       <table>
-        <thead><tr><th>设计原则</th><th>说明</th></tr></thead>
+        <thead><tr><th>模块</th><th>路径</th><th>职责</th></tr></thead>
         <tbody>
-          <tr><td><strong>KVCache 为中心</strong></td><td>KV Cache 的存储、传输、调度是系统核心，而非附属优化</td></tr>
-          <tr><td><strong>P/D 解耦</strong></td><td>Prefill 和 Decode 使用独立 GPU 池，各自优化，独立扩缩</td></tr>
-          <tr><td><strong>GPU 异构</strong></td><td>Prefill 用高算力 GPU（H100），Decode 用低成本 GPU（L40S）</td></tr>
-          <tr><td><strong>拓扑感知传输</strong></td><td>根据网络拓扑自动选择最优 KV Cache 传输路径</td></tr>
-          <tr><td><strong>弹性调度</strong></td><td>Prefill/Decode Pool 独立扩缩容，按负载动态调整</td></tr>
+          <tr><td><strong>Transfer Engine</strong></td><td><code>mooncake-transfer-engine/</code></td><td>高性能数据传输框架，统一接口支撑多种传输协议</td></tr>
+          <tr><td><strong>Mooncake Store</strong></td><td><code>mooncake-store/</code></td><td>分布式 KV 缓存引擎，多级缓存 + 对象管理</td></tr>
+          <tr><td><strong>Integration</strong></td><td><code>mooncake-integration/</code></td><td>Python 绑定层，对接 SGLang/vLLM 等推理框架</td></tr>
+          <tr><td><strong>EP & PG</strong></td><td><code>mooncake-ep/</code></td><td>弹性专家并行 + 容错 ProcessGroup</td></tr>
+          <tr><td><strong>P2P Store</strong></td><td><code>mooncake-p2p-store/</code></td><td>Go 语言实现的 P2P 权重同步</td></tr>
         </tbody>
       </table>
 
-      {/* ==================== 2. 核心组件 ==================== */}
-      <div className="section-divider"><span>核心组件</span></div>
+      {/* ==================== 2. Transfer Engine 深度分析 ==================== */}
+      <h2>Transfer Engine — 核心组件</h2>
+      <p>Transfer Engine (TE) 是 Mooncake 的<strong>底层传输基础设施</strong>，向上提供统一的批处理数据传输接口，向下支持多种异构网络协议。</p>
 
-      <h3>Master Server</h3>
-      <p>Master Server 是 Mooncake 的<strong>全局调度中枢</strong>，负责：</p>
-      <ul>
-        <li><strong>全局页表管理</strong>：维护 block_hash → PhysicalLocation 映射</li>
-        <li><strong>Pool 调度</strong>：分配 Prefill/Decode 任务到最优节点</li>
-        <li><strong>负载均衡</strong>：跟踪各 GPU 的负载和 KV Cache 分布</li>
-        <li><strong>故障恢复</strong>：检测节点故障并重新调度</li>
-      </ul>
+      <h3>核心 API</h3>
+      <CodeBlock language="cpp" code={`// mooncake-transfer-engine/include/transfer_engine.h
+class TransferEngine {
+public:
+    // 初始化引擎
+    int init(const std::string& metadata_conn_string,
+             const std::string& local_server_name,
+             const std::string& ip_or_host_name = "",
+             uint64_t rpc_port = 12345);
 
-      <CodeBlock language="python" title="Master Server 调度逻辑" code={`class MooncakeMaster:
-    """Mooncake Master: 全局调度 + KV Cache 元数据管理"""
+    // 注册本地内存，使其可被远端访问
+    int registerLocalMemory(void* addr, size_t length,
+                            const std::string& location = kWildcardLocation,
+                            bool remote_accessible = true,
+                            bool update_metadata = true);
 
-    def __init__(self):
-        # 全局 KV Cache 页表
-        self.page_table: dict[str, BlockLocation] = {}
-        # Prefill Pool 状态
-        self.prefill_nodes: dict[str, NodeState] = {}
-        # Decode Pool 状态
-        self.decode_nodes: dict[str, NodeState] = {}
+    // 批量提交传输请求
+    Status submitTransfer(BatchID batch_id,
+                          const std::vector<TransferRequest>& entries);
 
-    def schedule_prefill(self, request: Request) -> str:
-        """为 Prefill 请求分配节点"""
-        # 1. 检查前缀缓存命中
-        prefix_hits = self._lookup_prefix(request.prompt_tokens)
+    // 安装传输协议（RDMA/TCP/...）
+    Transport* installTransport(const std::string& proto, void** args);
 
-        # 2. 选择 Prefill 节点
-        if prefix_hits:
-            # 优先选择已有相关 KV Cache 的节点
-            node = self._select_node_with_cache(prefix_hits)
-        else:
-            # 选择负载最低的节点
-            node = self._select_least_loaded(self.prefill_nodes)
+    // 段管理 —— 用于标识一组内存区域
+    SegmentHandle openSegment(const std::string& segment_name);
+    int closeSegment(SegmentHandle handle);
+};`} />
 
-        return node
-
-    def schedule_decode(self, session_id: str, block_hashes: list[str]) -> str:
-        """为 Decode 请求分配节点"""
-        # 1. 查询 block 物理位置
-        locations = self._lookup_blocks(block_hashes)
-
-        # 2. 拓扑感知选择: 优先选择网络距离最近的节点
-        node = self._select_topology_nearest(locations, self.decode_nodes)
-
-        return node
-
-    def commit_blocks(self, session_id: str, block_hashes: list[str],
-                      locations: list[BlockLocation]):
-        """提交 KV Cache 元数据"""
-        for h, loc in zip(block_hashes, locations):
-            self.page_table[h] = loc`} />
-
-      <h3>Transfer Engine</h3>
-      <p>Transfer Engine 负责 KV Cache 的<strong>高速跨节点传输</strong>，支持多种传输协议：</p>
-
+      <h3>传输协议栈</h3>
+      <p>TE 支持 <strong>18+ 种传输协议</strong>，覆盖从节点内到跨节点的所有场景：</p>
       <table>
-        <thead><tr><th>协议</th><th>带宽</th><th>场景</th><th>平台</th></tr></thead>
+        <thead><tr><th>类别</th><th>协议</th><th>路径</th><th>用途</th></tr></thead>
         <tbody>
-          <tr><td><strong>RDMA (InfiniBand)</strong></td><td>400 GB/s</td><td>跨节点 GPU 直传</td><td>NVIDIA</td></tr>
-          <tr><td><strong>TCP/IP</strong></td><td>100 GbE</td><td>跨节点低成本传输</td><td>通用</td></tr>
-          <tr><td><strong>NVLink</strong></td><td>900 GB/s</td><td>同节点 GPU 间</td><td>NVIDIA</td></tr>
-          <tr><td><strong>HCCS (HIXL)</strong></td><td>119 GB/s</td><td>同节点 NPU 间</td><td>Ascend</td></tr>
-          <tr><td><strong>RDMA (HIXL)</strong></td><td>22 GB/s</td><td>跨节点 NPU 间</td><td>Ascend</td></tr>
+          <tr><td><strong>节点内</strong></td><td>NVLink</td><td><code>nvlink_transport/</code></td><td>GPU-GPU 直连</td></tr>
+          <tr><td><strong>节点内</strong></td><td>CXL</td><td><code>cxl_transport/</code></td><td>CXL 共享内存</td></tr>
+          <tr><td><strong>节点内</strong></td><td>HCCS</td><td><code>ascend_transport/</code></td><td>昇腾 NPU 间高速互联</td></tr>
+          <tr><td><strong>跨节点</strong></td><td>RDMA</td><td><code>rdma_transport/</code></td><td>RoCE / InfiniBand</td></tr>
+          <tr><td><strong>跨节点</strong></td><td>TCP</td><td><code>tcp_transport/</code></td><td>通用 TCP 回退</td></tr>
+          <tr><td><strong>跨节点</strong></td><td>EFA</td><td><code>efa_transport/</code></td><td>AWS Elastic Fabric Adapter</td></tr>
+          <tr><td><strong>跨节点</strong></td><td>NVMe-oF</td><td><code>nvmeof_transport/</code></td><td>NVMe over Fabric</td></tr>
+          <tr><td><strong>跨节点</strong></td><td>HCCS-roce</td><td><code>ascend_transport/</code></td><td>昇腾 RoCE 网络</td></tr>
+          <tr><td><strong>跨节点</strong></td><td>GPU-P2P</td><td><code>device/</code></td><td>GPU Direct RDMA</td></tr>
+          <tr><td><strong>跨节点</strong></td><td>NCCL</td><td><code>nccl_transport/</code></td><td>NVIDIA 集合通信</td></tr>
         </tbody>
       </table>
 
-      <h3>Transfer Engine 核心实现</h3>
-      <CodeBlock language="python" title="Transfer Engine" code={`class MooncakeTransferEngine:
-    """Mooncake KV Cache 传输引擎"""
+      <h3>MultiTransport — 多协议聚合</h3>
+      <CodeBlock language="cpp" code={`// mooncake-transfer-engine/include/multi_transport.h
+// 核心思想：一个 TransferRequest 可以走多条路径
+// MultiTransport 负责：
+// 1. 根据拓扑自动选择最优协议和 NIC
+// 2. 多 NIC 带宽聚合
+// 3. 故障自动切换（网络中断时 fallback 到 TCP）
+// 4. 拓扑感知路由（NUMA 亲和性）
 
-    def __init__(self, topology: Topology):
-        self.topology = topology
-        # 根据拓扑自动选择最优协议
-        self.protocol = self._select_protocol()
+class MultiTransport {
+    std::vector<std::unique_ptr<Transport>> transports_;
+    std::shared_ptr<Topology> topology_;
+};`} />
 
-    def transfer_kv_cache(self, blocks: list[Block],
-                          src_node: str, dst_node: str):
-        """传输 KV Cache blocks"""
-        # 1. 拓扑感知: 选择最优传输路径
-        path = self.topology.find_best_path(src_node, dst_node)
-        protocol = self._select_protocol_for_path(path)
+      <h3>TransferMetadata — 元数据与拓扑发现</h3>
+      <CodeBlock language="cpp" code={`// mooncake-transfer-engine/include/transfer_metadata.h
+// 核心职责：
+// 1. 集群拓扑发现（etcd 或 HTTP metadata server）
+// 2. 内存段注册与管理（SegmentHandle）
+// 3. 节点间通知机制（NotifyDesc）
+// 4. 批量传输状态跟踪
 
-        # 2. Layer-wise Pipeline: 逐层传输，隐藏延迟
-        for layer_id in range(blocks[0].num_layers):
-            for block in blocks:
-                # 异步传输当前层
-                self._async_send(
-                    data=block.get_layer(layer_id),
-                    dst=dst_node,
-                    protocol=protocol,
-                )
-            # 传输期间 Prefill 继续计算下一层
+class TransferMetadata {
+    // 注册/查询内存段
+    SegmentHandle openSegment(const std::string& segment_name);
+    int closeSegment(SegmentHandle handle);
 
-        # 3. 等待所有传输完成
-        self._wait_all()
+    // 通知机制 —— 实现跨节点同步
+    int getNotifies(std::vector<NotifyDesc>& notifies);
+    int sendNotifyByID(SegmentID target_id, NotifyDesc notify_msg);
+};`} />
 
-    def _select_protocol(self) -> str:
-        """自动选择传输协议"""
-        if self.topology.is_same_node():
-            return "nvlink"  # 或 "hccs" (Ascend)
-        elif self.topology.has_rdma():
-            return "rdma"
-        else:
-            return "tcp"`} />
-
-      {/* ==================== 3. 请求生命周期 ==================== */}
-      <div className="section-divider"><span>请求生命周期</span></div>
+      {/* ==================== 3. Mooncake Store - KV Pool 实现 ==================== */}
+      <h2>Mooncake Store — KV Pool 分布式实现</h2>
+      <p>Mooncake Store 是基于 Transfer Engine 构建的<strong>分布式 KV Cache 存储引擎</strong>，它将各推理节点的内存/SSD 资源池化，形成全局 KV Cache 池。</p>
 
       <MermaidDiagram chart={`
-sequenceDiagram
-    participant Client
-    participant Master
-    participant Prefill as Prefill GPU
-    participant Transfer as Transfer Engine
-    participant Decode as Decode GPU
-
-    Client->>Master: POST /v1/completions
-    Master->>Master: 调度决策 (前缀检查)
-    Master->>Prefill: 分配 Prefill 任务
-
-    Note over Prefill: Phase 1: Prefill
-    Prefill->>Prefill: Tokenize + Forward
-    Prefill->>Master: 申请存储位置
-    Master-->>Prefill: 返回 PhysicalLocation
-
-    Note over Prefill,Transfer: Phase 2: KV 传输
-    Prefill->>Transfer: Layer-wise RDMA Write
-    Transfer-->>Prefill: 传输完成
-    Prefill->>Master: commit 元数据
-
-    Note over Decode: Phase 3: Decode
-    Master->>Decode: 分配 Decode 任务
-    Decode->>Master: lookup block 位置
-    Master-->>Decode: 返回 PhysicalLocation
-    Decode->>Transfer: RDMA Read (分批预取)
-    Transfer-->>Decode: KV Cache 就绪
-
-    loop Decode Loop
-        Decode->>Decode: 生成 token
-        Decode-->>Client: SSE: token
-    end
-    Decode-->>Client: [DONE]
-      `} maxWidth={520} />
-
-      {/* ==================== 4. P/D 分离调度 ==================== */}
-      <div className="section-divider"><span>P/D 分离调度</span></div>
-
-      <h3>为什么 P/D 分离</h3>
-      <table>
-        <thead><tr><th>维度</th><th>Prefill</th><th>Decode</th></tr></thead>
-        <tbody>
-          <tr><td><strong>计算模式</strong></td><td>Compute-bound</td><td>Memory-bound</td></tr>
-          <tr><td><strong>GPU 利用率</strong></td><td>80-90%</td><td>20-30%</td></tr>
-          <tr><td><strong>并行度</strong></td><td>高（一次处理全部 tokens）</td><td>低（每次 1 token）</td></tr>
-          <tr><td><strong>推荐 GPU</strong></td><td>高算力（H100/A100）</td><td>低成本（L40S/A10）</td></tr>
-          <tr><td><strong>Batch 效率</strong></td><td>大 batch 高效</td><td>小 batch 即可饱和</td></tr>
-        </tbody>
-      </table>
-
-      <Callout type="tip">
-        <strong>核心价值：</strong>一体式架构中 Decode 阶段 GPU 算力大量闲置（20-30% 利用率）。
-        P/D 分离后，Decode 使用低成本 GPU，总成本降低 30-50%，同时 Prefill 和 Decode 可独立扩缩容。
-      </Callout>
-
-      <h3>Mooncake 在 P/D 分离中的核心作用</h3>
-      <p>Mooncake 不仅仅是实现了 P/D 分离，而是将 <strong>KV Cache 的存储、传输、调度</strong> 作为整个系统的核心基础设施。在一体式架构中，Prefill 和 Decode 在同一 GPU 上共享 KV Cache，无需传输；而在 P/D 分离架构下，<strong>KV Cache 必须从 Prefill 节点高效传输到 Decode 节点</strong>，这成为系统性能的关键瓶颈。</p>
-
-      <h4>Mooncake 解决的三大核心问题</h4>
-
-      <table>
-        <thead><tr><th>问题</th><th>一体式架构</th><th>Mooncake P/D 分离方案</th></tr></thead>
-        <tbody>
-          <tr><td><strong>KV Cache 传输</strong></td><td>无需传输（同 GPU 内存）</td><td>Transfer Engine: RDMA/TCP/NVLink 多协议高速传输</td></tr>
-          <tr><td><strong>节点选择</strong></td><td>无选择（本地唯一）</td><td>Master Server: 拓扑感知调度，选择网络距离最近的 Decode 节点</td></tr>
-          <tr><td><strong>前缀缓存共享</strong></td><td>仅限本 GPU 内</td><td>全局页表: 跨节点、跨 Pool 的 block 级去重与共享</td></tr>
-        </tbody>
-      </table>
-
-      <h4>P/D 分离全流程详解</h4>
-      <p>以下是一个完整请求在 Mooncake P/D 分离架构下的端到端流程：</p>
-
-      <MermaidDiagram maxWidth={520} chart={`
-sequenceDiagram
-    participant Client
-    participant Router as Mooncake Router
-    participant Master
-    participant P as Prefill GPU (H100)
-    participant TE as Transfer Engine
-    participant D as Decode GPU (L40S)
-
-    Note over Client,D: === Phase 1: 请求接入 ===
-    Client->>Router: POST /v1/chat/completions
-    Router->>Master: 查询可用资源 + 前缀缓存命中
-    Master-->>Router: 返回 Prefill 节点候选列表
-
-    Note over Router: 选择最优 Prefill 节点<br/>(有缓存命中优先)
-
-    Note over Client,D: === Phase 2: Prefill 阶段 ===
-    Router->>P: 分配 Prefill 任务
-    P->>P: Tokenize + Embedding
-    loop 逐层 Forward
-        P->>P: Layer i Attention + FFN
-        Note over P: 产生 layer i 的 K,V
-    end
-    P->>Master: 申请 KV Cache 存储位置
-    Master-->>P: 返回 PhysicalLocation<br/>(偏好就近 Decode Pool)
-
-    Note over Client,D: === Phase 3: KV Cache 传输 ===
-    P->>TE: Layer-wise RDMA Write<br/>(Prefill 还在计算后续层)
-    Note over TE: 利用 Layer-wise Pipeline<br/>隐藏传输延迟
-    TE-->>P: 传输完成
-    P->>Master: commit 元数据<br/>(block_hash → location)
-
-    Note over Client,D: === Phase 4: Decode 阶段 ===
-    Master->>D: 分配 Decode 任务<br/>(拓扑感知: 优先选 KV Cache 最近的节点)
-    D->>Master: lookup block 位置
-    Master-->>D: 返回 PhysicalLocation
-    D->>TE: RDMA Read (分批预取)
-    TE-->>D: KV Cache 就绪
-
-    loop Decode Loop
-        D->>D: Attention + FFN (1 token)
-        D-->>Client: SSE: {"token": "..."}
-        Note over D: 新 token 的 K,V 追加到本地 block
-    end
-    D-->>Client: [DONE]
-      `} />
-
-      <h4>拓扑感知的 P/D 节点配对</h4>
-      <p>Mooncake Master 在做 P/D 配对时，综合考虑以下因素：</p>
-
-      <CodeBlock language="python" title="拓扑感知 P/D 配对算法" code={`class TopologyAwarePDMatcher:
-    """Mooncake 拓扑感知的 P/D 节点配对"""
-
-    def match_decode_node(self, block_locations: list[BlockLocation],
-                          decode_pool: dict[str, NodeState]) -> str:
-        """为 KV Cache blocks 选择最优 Decode 节点"""
-
-        candidates = []
-        for node_id, node_state in decode_pool.items():
-            # 1. 计算总传输成本
-            transfer_cost = 0
-            for blk_loc in block_locations:
-                # 网络距离: 同节点(1) < 同机架(10) < 跨机架(100)
-                distance = self.topology.distance(
-                    blk_loc.node_id, node_id
-                )
-                # 传输量: block_size × num_layers × 2 (K+V)
-                transfer_cost += distance * blk_loc.block_size
-
-            # 2. 考虑节点当前负载
-            load_penalty = node_state.active_requests * 0.1
-
-            candidates.append({
-                'node_id': node_id,
-                'cost': transfer_cost + load_penalty,
-                'load': node_state.active_requests,
-            })
-
-        # 3. 选择成本最低的节点
-        best = min(candidates, key=lambda c: c['cost'])
-        return best['node_id']`} />
-
-      <h4>多轮对话场景下的 P/D 优化</h4>
-      <p>多轮对话是 Mooncake P/D 分离架构最能发挥优势的场景。由于所有轮次共享 system prompt 和历史对话的 KV Cache，Mooncake 通过以下机制最大化缓存命中率：</p>
-
-      <MermaidDiagram maxWidth={520} chart={`
-sequenceDiagram
-    participant Client
-    participant Master
-    participant P1 as Prefill A
-    participant D1 as Decode A
-    participant D2 as Decode B
-
-    Note over Client,D2: Round 1: 完整 Prefill + Decode
-    Client->>Master: Round 1: "system + Q1"
-    Master->>P1: Prefill (system + Q1)
-    P1->>P1: 产生 KV Cache blocks
-    P1->>Master: commit: block_sys, block_q1
-    Master->>D1: Decode Round 1
-    D1->>D1: 生成 A1 tokens
-
-    Note over Client,D2: Round 2: 仅 Prefill Q2, 复用 system+Q1
-    Client->>Master: Round 2: "system + Q1 + A1 + Q2"
-    Master->>Master: 前缀匹配:<br/>block_sys ✅ (命中)<br/>block_q1 ✅ (命中)
-    Master->>P1: 仅 Prefill (A1 + Q2)<br/>无需重算 system + Q1
-    Note over P1: 节省 60-80% Prefill 计算
-    P1->>P1: 产生 block_a1, block_q2
-    Master->>D2: Decode Round 2<br/>(可选新节点, 拓扑感知)
-    D2->>Master: lookup: block_sys, block_q1
-    Master-->>D2: 返回位置 (可能在 D1 所在节点)
-    D2->>D2: RDMA Read 已有 blocks + 本地新 block
-      `} />
-
-      <Callout type="tip">
-        <strong>多轮对话收益：</strong>假设 system prompt 占用 4096 tokens，每轮对话 512 tokens，3 轮对话：
-        <ul>
-          <li>一体式：3 轮 × (4096+512) = 13,824 tokens Prefill</li>
-          <li>Mooncake P/D 分离 + 前缀缓存：4096 + 3×512 = 5,632 tokens Prefill</li>
-          <li><strong>节省 59% Prefill 计算量</strong>，且 Decode Pool 可独立扩缩容应对多轮并发</li>
-        </ul>
-      </Callout>
-
-      <h4>P/D 分离下的故障恢复</h4>
-      <p>Mooncake 在 P/D 分离场景下需要处理两类故障：</p>
-
-      <table>
-        <thead><tr><th>故障类型</th><th>影响</th><th>Mooncake 恢复策略</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Prefill 节点故障</strong></td><td>正在进行的 Prefill 请求失败</td><td>Master 检测心跳超时 → 将请求重新分配到其他 Prefill 节点 → 重新 Prefill（无 KV Cache 状态需要恢复）</td></tr>
-          <tr><td><strong>Decode 节点故障</strong></td><td>正在进行的 Decode 会话中断</td><td>Master 检测心跳超时 → 从全局页表查找该会话的 KV Cache 副本位置 → 在新 Decode 节点通过 RDMA 恢复 KV Cache → 继续生成</td></tr>
-          <tr><td><strong>Transfer Engine 异常</strong></td><td>KV Cache 传输中断</td><td>自动降级到 TCP 协议重传 → 若持续失败，重新调度到同节点 P/D 配对（通过 NVLink/HCCS 传输）</td></tr>
-        </tbody>
-      </table>
-
-      <CodeBlock language="python" title="Decode 节点故障恢复" code={`class MooncakeFailover:
-    """Mooncake P/D 分离故障恢复"""
-
-    def handle_decode_node_failure(self, failed_node: str):
-        # 1. 获取故障节点上所有活跃会话
-        affected_sessions = self.master.get_sessions_on_node(failed_node)
-
-        for session in affected_sessions:
-            # 2. 查找 KV Cache 副本位置
-            block_locations = self.master.lookup_blocks(
-                session.block_hashes
-            )
-
-            # 3. 判断是否有副本
-            if len(block_locations) == 0:
-                # 无副本: 需要从最近的 Prefill 节点重新生成
-                self._restart_from_prefill(session)
-                continue
-
-            # 4. 选择新 Decode 节点 (拓扑感知)
-            new_node = self._select_topology_nearest(
-                block_locations,
-                exclude=[failed_node],
-            )
-
-            # 5. 恢复 KV Cache 到新节点
-            self.transfer_engine.transfer_kv_cache(
-                blocks=session.blocks,
-                src_node=block_locations[0].node_id,
-                dst_node=new_node,
-            )
-
-            # 6. 在新节点继续 Decode
-            self.master.schedule_decode(
-                session_id=session.id,
-                node=new_node,
-                resume_from=session.last_token_id,
-            )`} />
-
-      {/* ==================== 5. KV Cache 传输优化 ==================== */}
-      <div className="section-divider"><span>KV Cache 传输优化</span></div>
-
-      <h3>Layer-wise Pipeline</h3>
-      <p>Prefill 还在进行时就开始传输已完成层的 KV Cache，将传输延迟隐藏在计算中：</p>
-
-      <MermaidDiagram chart={`
-gantt
-    title Layer-wise Pipeline
-    dateFormat X
-    axisFormat %s
-
-    section Prefill
-    Layer 0-7  :p0, 0, 2
-    Layer 8-15 :p1, 2, 4
-    Layer 16-23:p2, 4, 6
-    Layer 24-31:p3, 6, 8
-
-    section Transfer
-    L0-7 传输  :t0, 2, 4
-    L8-15 传输 :t1, 4, 6
-    L16-23 传输:t2, 6, 8
-    L24-31 传输:t3, 8, 10
-
-    section Decode
-    预取+等待  :d0, 2, 5
-    Decode     :d1, 5, 8
-      `} maxWidth={520} />
-
-      <h3>去重传输</h3>
-      <p>相同前缀的 KV Cache 只传输一次，后续请求通过引用计数共享：</p>
-
-      <CodeBlock language="python" title="去重传输" code={`class DedupTransfer:
-    """KV Cache 去重传输"""
-
-    def __init__(self):
-        self.transferred: set[str] = set()  # 已传输的 block hash
-
-    def transfer_if_needed(self, block: Block, dst: str) -> bool:
-        """仅在未传输过时才传输"""
-        if block.hash in self.transferred:
-            # 已传输过，只增加引用计数
-            self.master.increment_ref(block.hash, dst)
-            return False
-        else:
-            # 首次传输
-            self.engine.send(block, dst)
-            self.transferred.add(block.hash)
-            return True
-
-# 效果: 3 个请求共享 system prompt
-# 传输量: 1 × KV_size (而非 3 × KV_size)`} />
-
-      {/* ==================== 6. 两种传输引擎 ==================== */}
-      <div className="section-divider"><span>两种传输引擎</span></div>
-
-      <p>Mooncake 在 P/D 分离场景下，提供<strong>两套传输引擎</strong>以适配不同硬件平台。两者都实现了 KV Cache 从 Prefill 到 Decode 的高效传输，但底层机制、通信模型和适用场景有本质差异。</p>
-
-      <h3>架构定位</h3>
-
-      <MermaidDiagram maxWidth={520} chart={`
 graph TB
-    subgraph Apps["推理框架"]
-        VLLM["vLLM"]
-        SGL["SGLang"]
+    subgraph Client["推理引擎 (vLLM/SGLang)"]
+        Put["PutStart → 分配内存 → 写入数据 → PutEnd"]
+        Get["GetReplicaList → 获取副本位置 → 传输数据"]
+        Remove["Remove → 释放内存"]
     end
 
-    subgraph MooncakeCore["Mooncake 核心"]
-        Master2["Master Server"]
-        Router2["Router"]
+    subgraph MC["MasterClient (RPC)"]
+        RPC["coro_rpc<br/>异步 RPC 通信"]
+        Pool["RpcClientPool<br/>连接池管理"]
     end
 
-    subgraph Connectors["传输引擎 (Connector)"]
-        subgraph TE["Transfer Engine &#40;NVIDIA&#41;"]
-            RDMA_LIB["RDMA 库"]
-            TCP_LIB["TCP 库"]
-            NVLink_LIB["NVLink 库"]
-        end
-        subgraph HIXL["HIXL Engine &#40;Ascend&#41;"]
-            HCCS_LIB["HCCS 库"]
-            RDMA_ASC["RDMA 库"]
-            UB_LIB["UB 库"]
-        end
+    subgraph Master["Master Server"]
+        MetaSvc["MasterService<br/>Put/Get/Remove/Copy/Move"]
+        AllocSvc["AllocationStrategy<br/>分配策略 + 负载均衡"]
+        View["ClusterView<br/>全局 Segment 视图"]
+        QoS["Tenant Quota<br/>多租户隔离"]
+        Task["TaskManager<br/>后台复制/迁移任务"]
     end
 
-    subgraph HW["硬件"]
-        NVIDIA["NVIDIA GPU<br/>H100/A100/L40S"]
-        Ascend["Ascend NPU<br/>A3/A5"]
+    subgraph Segments["分布式存储节点"]
+        S1["Segment A<br/>DRAM (Cachelib)"]
+        S2["Segment B<br/>DRAM (Offset)"]
+        S3["Segment C<br/>SSD (NVMe-oF)"]
+        S4["Segment D<br/>Local SSD"]
     end
 
-    Apps --> MooncakeCore
-    MooncakeCore --> TE
-    MooncakeCore --> HIXL
-    TE --> NVIDIA
-    HIXL --> Ascend
-      `} />
+    Client --> MC
+    MC --> Master
+    Master --> Segments
+    Master --> QoS
+    Master --> Task
+`} maxWidth={680} />
 
-      <Callout type="info">
-        <strong>统一接口，底层异构：</strong>Mooncake 对上暴露统一的 <code>TransferEngine</code> 接口，推理框架无需关心底层是 NVIDIA 还是 Ascend。
-        实际传输由对应的 Connector 完成，Master Server 根据节点硬件类型自动选择。
+      <h3>3.1 内存分配器 (Allocator Layer)</h3>
+      <p>Store 提供两种分配器策略，管理每个 Segment 的内存分配：</p>
+
+      <CodeBlock language="cpp" code={`// mooncake-store/include/allocator.h
+// 两种分配器实现：
+
+// 1. CachelibBufferAllocator — 基于 Meta CacheLib 的 Slab 分配器
+//    适合：频繁分配/释放的 KV Cache block
+class CachelibBufferAllocator : public BufferAllocatorBase {
+    std::unique_ptr<facebook::cachelib::MemoryAllocator> memory_allocator_;
+    PoolId pool_id_;
+    // Slab 分配策略：将内存分为不同大小的 Slab 类
+    // 避免内存碎片，适合 KV Cache 这种固定大小块场景
+};
+
+// 2. OffsetBufferAllocator — 基于 OffsetAllocator 的 bin 分配器
+//    适合：需要精确控制偏移量的场景
+class OffsetBufferAllocator : public BufferAllocatorBase {
+    std::shared_ptr<offset_allocator::OffsetAllocator> offset_allocator_;
+    // 返回真实的最大空闲区域，用于分配决策
+    size_t getLargestFreeRegion() const override;
+};
+
+// 每个 Segment 绑定一个分配器实例
+// 分配器通过 AttachUsageTracker 注册到全局资源追踪`} />
+
+      <h3>3.2 副本管理 (Replica Manager)</h3>
+      <CodeBlock language="cpp" code={`// mooncake-store/include/types.h
+// 每个 KV Cache 对象可以有多个副本（Replica）
+enum class ReplicaType {
+    MEMORY = 0,      // DRAM 副本（热数据，低延迟）
+    DISK = 1,        // SSD 副本（温数据，低成本）
+    LOCAL_DISK = 2,  // 本地 SSD（不使用网络存储）
+    NOF_SSD = 3,     // NVMe-oF 远程 SSD
+    DFS = 100,       // 分布式文件系统备份
+};
+
+// Replica 描述符包含完整的传输信息
+struct Replica::Descriptor {
+    uint64_t size_;
+    uintptr_t buffer_address_;
+    std::string protocol_;          // 传输协议: "rdma", "tcp"
+    std::string transport_endpoint_; // 传输端点地址
+};`} />
+
+      <h3>3.3 Master-Side 分配策略</h3>
+      <CodeBlock language="cpp" code={`// mooncake-store/src/allocation_strategy.cpp
+// Master 在 PutStart 时进行的全局分配决策：
+
+// 1. 获取所有可用 Segment 的容量和负载信息
+// 2. 根据 ReplicateConfig 筛选候选 Segment（考虑内存/磁盘）
+// 3. 过滤掉空闲空间不足的 Segment（getLargestFreeRegion）
+// 4. 按可用空间排序，优先分配到空间最大的 Segment
+// 5. 支持 preferred_segments 参数（用户指定优先分配节点）
+// 6. 返回 Replica::Descriptor 列表，包含：
+//    - 分配的 buffer 地址
+//    - 传输协议（rdma/tcp/tcp+cxl）
+//    - 传输端点信息
+
+// 分配时考虑的因素：
+// - Segment 容量和当前使用量
+// - 最大空闲区域（避免碎片导致分配失败）
+// - 副本数（replica_count）
+// - 用户指定的 placement 偏好`} />
+
+      <h3>3.4 对象生命周期管理</h3>
+      <CodeBlock language="cpp" code={`// mooncake-store/include/master_client.h
+// 完整的对象操作接口：
+
+// Put 操作（两阶段提交）
+PutStart(key, slice_lengths, config)  // 分配副本 → 返回 Replica::Descriptor
+PutEnd(object_meta, replica_type)      // 确认写入 → 激活副本
+
+// Get 操作（元数据查询 + 直接传输）
+GetReplicaList(key)  // 从 Master 获取副本位置
+// 然后通过 Transfer Engine 直接从源节点 RDMA 读取
+
+// 更新操作
+UpsertStart / UpsertEnd  // 插入或更新（不存在则创建，存在则更新）
+
+// 删除操作
+Remove(key)  // 删除对象及其所有副本
+
+// 高级操作
+CopyStart → CopyEnd       // 对象副本复制
+MoveStart → MoveEnd       // 对象跨段迁移
+CreateCopyTask / CreateMoveTask  // 异步任务`} />
+
+      <Callout type="info" title="设计要点">
+        <p><strong>主从分离</strong>：Master 只管理元数据，不参与数据传输。所有数据通过 Transfer Engine 在节点间直接（P2P）传输，避免 Master 成为瓶颈。</p>
+        <p><strong>两阶段写入</strong>：PutStart 分配副本空间 → 客户端直接写入数据 → PutEnd 确认激活。这样可以在写入失败时回滚分配。</p>
+        <p><strong>零拷贝读取</strong>：GetReplicaList 返回远程内存地址和传输协议后，客户端通过 Transfer Engine 执行 RDMA Read，数据直接从远程内存到本地内存，无需 CPU 拷贝。</p>
       </Callout>
 
-      {/* ==================== 6.1 Transfer Engine (NVIDIA) ==================== */}
-      <h3>Transfer Engine（NVIDIA 平台）</h3>
+      {/* ==================== 4. P/D 分离 ==================== */}
+      <h2>P/D 分离中的作用与实现</h2>
 
-      <p>Mooncake Transfer Engine 是 Mooncake <strong>自研的 KV Cache 传输引擎</strong>，专为 NVIDIA GPU 集群设计，已在 Kimi 40 万+ GPU 生产环境中验证。其核心设计思想是：<strong>将 KV Cache 的传输与 GPU 计算完全解耦，通过 RDMA 实现 GPU 显存到 GPU 显存的直接传输</strong>。</p>
-
-      <h4>P/D 分离下的数据传输机制</h4>
-
-      <MermaidDiagram maxWidth={520} chart={`
-sequenceDiagram
-    participant P_GPU as Prefill GPU (H100)
-    participant P_MEM as GPU HBM
-    participant NIC as RDMA NIC (IB)
-    participant D_NIC as RDMA NIC (IB)
-    participant D_MEM as GPU HBM
-    participant D_GPU as Decode GPU (L40S)
-
-    Note over P_GPU,D_GPU: === Transfer Engine (NVIDIA) P/D 数据传输 ===
-
-    rect rgb(230, 240, 255)
-        Note over P_GPU,P_MEM: Step 1: GPU 注册内存
-        P_GPU->>P_MEM: 注册 KV Cache buffer 为 RDMA MR
-        Note over P_MEM: cudaMalloc + cuMemGetAddressRange<br/>→ ibv_reg_mr
+      <MermaidDiagram chart={`
+graph LR
+    subgraph Router["Router / 调度器"]
+        R["请求路由<br/>Prefill or Decode?"]
     end
 
-    rect rgb(230, 255, 230)
-        Note over P_GPU,NIC: Step 2: Prefill 产生 KV Cache
-        P_GPU->>P_GPU: Layer i Forward Pass
-        P_GPU->>P_MEM: 写入 K_i, V_i 到 HBM
-        Note over P_GPU: Layer i 完成后立即触发传输<br/>(Layer-wise Pipeline)
+    subgraph Prefill["Prefill Pool (GPU 集群)"]
+        P1["Prefill GPU 0<br/>计算 Attention<br/>生成 KV Cache"]
+        P2["Prefill GPU 1"]
+        P_Store["Mooncake Store Client<br/>Put KV Cache"]
     end
 
-    rect rgb(255, 245, 230)
-        Note over NIC,D_MEM: Step 3: GPU Direct RDMA Write
-        P_GPU->>NIC: 触发 RDMA Write<br/>(GPU 直接控制 NIC)
-        Note over NIC: GPU Direct RDMA:<br/>数据从 GPU HBM → NIC<br/>不经 CPU/系统内存
-        NIC->>D_NIC: InfiniBand 400 GB/s
-        D_NIC->>D_MEM: 直接写入远端 GPU HBM
-        Note over D_MEM: 远端 GPU 无感知<br/>数据已到达 HBM
+    subgraph Transfer["KV Cache 传输"]
+        TE_M["Transfer Engine<br/>RDMA 直传"]
+        Store_M["Mooncake Store<br/>全局 KV Pool"]
     end
 
-    rect rgb(255, 230, 245)
-        Note over D_GPU,D_MEM: Step 4: Decode 读取 KV Cache
-        D_GPU->>D_MEM: 从本地 HBM 读取 K,V
-        D_GPU->>D_GPU: Attention 计算
+    subgraph Decode["Decode Pool (GPU 集群)"]
+        D_Store["Mooncake Store Client<br/>Get KV Cache"]
+        D1["Decode GPU 0<br/>自回归生成"]
+        D2["Decode GPU 1"]
+        D3["Decode GPU 2"]
     end
-      `} />
 
-      <h4>GPU Direct RDMA 原理</h4>
-      <p>Transfer Engine 的核心优势在于 <strong>GPU Direct RDMA</strong>：数据从源 GPU 显存直接通过 RDMA 网卡到达目标 GPU 显存，全程不经过 CPU 和系统内存。这消除了传统网络传输中的两次内存拷贝（GPU→CPU→NIC / NIC→CPU→GPU）。</p>
+    R --> Prefill
+    R --> Decode
+    Prefill --> Transfer
+    Transfer --> Decode
+`} maxWidth={700} />
 
-      <table>
-        <thead><tr><th>传输路径</th><th>数据流</th><th>延迟</th><th>带宽</th></tr></thead>
-        <tbody>
-          <tr><td><strong>传统 Socket 传输</strong></td><td>GPU HBM → CPU DDR → NIC → 网络 → NIC → CPU DDR → GPU HBM</td><td>高（2 次 cudaMemcpy）</td><td>受 PCIe 带宽限制</td></tr>
-          <tr><td><strong>GPUDirect RDMA</strong></td><td>GPU HBM → NIC → 网络 → NIC → GPU HBM</td><td>低（0 次 cudaMemcpy）</td><td>400 GB/s (IB NDR)</td></tr>
-        </tbody>
-      </table>
+      <h3>4.1 P/D 分离核心流程</h3>
+      <CodeBlock language="python" code={`# 基于 mooncake-integration 的 P/D 分离流程
 
-      <h4>Transfer Engine 传输协议选择</h4>
-      <table>
-        <thead><tr><th>协议</th><th>触发条件</th><th>带宽</th><th>P/D 分离场景</th></tr></thead>
-        <tbody>
-          <tr><td><strong>NVLink</strong></td><td>同节点内 P → D（同一台机器的不同 GPU）</td><td>900 GB/s</td><td>Prefill GPU 0 → Decode GPU 1（同节点）</td></tr>
-          <tr><td><strong>RDMA (IB)</strong></td><td>跨节点 P → D（不同机器，有 InfiniBand）</td><td>400 GB/s</td><td>Prefill 节点 A → Decode 节点 B（跨节点）</td></tr>
-          <tr><td><strong>TCP/IP</strong></td><td>跨节点 P → D（无 RDMA，降级方案）</td><td>100 GbE</td><td>无 IB 网络的低成本集群</td></tr>
-        </tbody>
-      </table>
+# === Prefill 侧 ===
+from mooncake.store import MooncakeDistributedStore
 
-      <CodeBlock language="python" title="Transfer Engine P/D 数据传输核心实现" code={`class MooncakeTransferEngine:
-    """Mooncake Transfer Engine: NVIDIA 平台 P/D 数据传输"""
+store = MooncakeDistributedStore()
+store.setup(master_addr, local_server, global_segments)
 
-    def __init__(self, metadata_server: str):
-        self.metadata_server = metadata_server
-        self.registered_buffers: dict[str, RDMAContext] = {}
+# 1. Prefill 完成后，将 KV Cache 存入 Mooncake Store
+def prefill_and_store(request):
+    kv_cache = prefill_model(request)  # 计算 Attention，生成 KV Cache
 
-    # ===== P/D 分离核心流程 =====
+    # 分配副本空间（PutStart）
+    descriptors = store.put_start(
+        key=request.id,
+        slice_lengths=[len(kv_cache)],
+        config=ReplicateConfig(replica_count=2)  # 2 副本保证可用性
+    )
 
-    def register_kv_buffer(self, gpu_ptr: int, size: int) -> str:
-        """注册 GPU HBM 为 RDMA 可访问内存 (MR)"""
-        # 1. 通过 cudaGetDevice 获取当前 GPU
-        cuda_ctx = cuda_get_current_context()
-
-        # 2. 注册为 RDMA Memory Region
-        mr = ibv_reg_mr(
-            pd=self.rdma_pd,
-            addr=gpu_ptr,
-            length=size,
-            access=(IBV_ACCESS_LOCAL_WRITE |
-                    IBV_ACCESS_REMOTE_WRITE |
-                    IBV_ACCESS_REMOTE_READ),
+    # 通过 Transfer Engine 写入数据
+    for desc in descriptors:
+        transfer_engine.submit_transfer(
+            batch_id=bid,
+            entries=[TransferRequest(
+                opcode=WRITE,
+                source=kv_cache.data_ptr(),
+                target=desc.buffer_address,
+                length=len(kv_cache)
+            )]
         )
 
-        # 3. 获取远程访问密钥
-        rkey = mr.rkey
-        handle = self._allocate_handle()
-        self.registered_buffers[handle] = {
-            'mr': mr, 'rkey': rkey, 'addr': gpu_ptr, 'size': size
-        }
-        return handle
+    # 确认写入完成（PutEnd）
+    store.put_end(request.id, checksum)
 
-    def prefill_to_decode_transfer(self, blocks: list[KVBlock],
-                                    src_gpu: int, dst_node: str):
-        """P/D 分离: Prefill GPU → Decode GPU 传输"""
-        # 1. 获取远端 Decode GPU 的 RDMA 信息
-        remote_info = self.metadata_server.get_remote_info(dst_node)
-        # remote_info = {'addr': 0x..., 'rkey': 0x..., 'qp': ...}
+# === Decode 侧 ===
+def get_and_decode(request):
+    # 获取 KV Cache 副本位置
+    replicas = store.get_replica_list(request.id)
 
-        # 2. 建立 RDMA 连接
-        qp = self._connect_qp(src_gpu, remote_info['qp'])
+    # 选择最优副本（网络拓扑感知）
+    best_replica = select_best_replica(replicas)
 
-        # 3. Layer-wise Pipeline 传输
-        for layer_id in range(blocks[0].num_layers):
-            for block in blocks:
-                kv_layer = block.get_kv_layer(layer_id)
-                # GPU Direct RDMA Write:
-                #   数据从 src GPU HBM → NIC → 网络 → dst GPU HBM
-                #   全程不经过 CPU
-                self._rdma_write(
-                    qp=qp,
-                    src_addr=kv_layer.gpu_ptr,      # 源 GPU HBM 地址
-                    dst_addr=remote_info['addr'],    # 目标 GPU HBM 地址
-                    dst_rkey=remote_info['rkey'],    # 远端 MR 密钥
-                    size=kv_layer.byte_size,
-                )
-            # 传输 layer_id 的同时，Prefill 继续计算 layer_id+1
+    # 通过 Transfer Engine RDMA 直接读取
+    transfer_engine.submit_transfer(
+        batch_id=bid,
+        entries=[TransferRequest(
+            opcode=READ,
+            source=best_replica.buffer_address,
+            target=local_kv_cache.data_ptr(),
+            length=best_replica.size
+        )]
+    )
 
-        # 4. 等待所有 RDMA 操作完成
-        self._poll_completion(qp)
+    # 开始自回归生成
+    decode_model(request, local_kv_cache)`} />
 
-    def _rdma_write(self, qp, src_addr, dst_addr, dst_rkey, size):
-        """GPU Direct RDMA Write: 绕过 CPU 直接写入远端 GPU HBM"""
-        # 构造 RDMA Work Request
-        wr = ibv_send_wr()
-        wr.opcode = IBV_WR_RDMA_WRITE        # 单边写入
-        wr.send_flags = IBV_SEND_SIGNALED     # 完成后通知
-        wr.wr.rdma.remote_addr = dst_addr     # 远端目标地址
-        wr.wr.rdma.rkey = dst_rkey            # 远端访问密钥
+      <h3>4.2 vLLM Integration — MooncakeConnector</h3>
+      <CodeBlock language="python" code={`# vLLM 中的 P/D 分离集成（基于源码分析）
 
-        # 提交到 Send Queue → GPU 直接控制 NIC 执行
-        ibv_post_send(qp, wr)`} />
-
-      {/* ==================== 6.2 HIXL Engine (Ascend) ==================== */}
-      <h3>HIXL Engine（Ascend 平台）</h3>
-
-      <p>HIXL（Huawei Interconnect Acceleration Library）是华为昇腾平台的<strong>单边零拷贝通信库</strong>，在 Mooncake 架构中作为 Ascend NPU 的传输引擎。与 Transfer Engine 不同，HIXL 采用<strong>单边通信模型</strong>：本地 NPU 准备好数据后，通过单边操作直接写入远端 NPU 内存，无需远端节点参与。</p>
-
-      <h4>P/D 分离下的数据传输机制</h4>
-
-      <MermaidDiagram maxWidth={520} chart={`
-sequenceDiagram
-    participant P_NPU as Prefill NPU (A3)
-    participant P_HBM as NPU HBM
-    participant HIXL as HIXL Engine
-    participant NIC as RNIC
-    participant D_NIC as RNIC
-    participant D_HIXL as HIXL Engine
-    participant D_HBM as NPU HBM
-    participant D_NPU as Decode NPU (A3)
-
-    Note over P_NPU,D_NPU: === HIXL Engine (Ascend) P/D 数据传输 ===
-
-    rect rgb(230, 240, 255)
-        Note over P_NPU,HIXL: Step 1: 内存注册
-        P_NPU->>HIXL: register_memory(NPU_HBM_ptr, size)
-        HIXL->>HIXL: 分配 Memory Handle
-        Note over HIXL: 注册为远端可访问内存<br/>(类似 RDMA MR)
-    end
-
-    rect rgb(230, 255, 230)
-        Note over P_NPU,P_HBM: Step 2: Prefill 产生 KV Cache
-        P_NPU->>P_NPU: Layer i Forward Pass
-        P_NPU->>P_HBM: 写入 K_i, V_i 到 HBM
-    end
-
-    rect rgb(255, 245, 230)
-        Note over HIXL,D_HBM: Step 3: 单边零拷贝传输
-        P_NPU->>HIXL: transfer_async(src, dst, size)
-        HIXL->>HIXL: 协议选择: HCCS / RDMA / UB
-        alt 同节点 (HCCS 119 GB/s)
-            HIXL->>P_HBM: 读取 K,V
-            HIXL->>D_HBM: HCCS 片间直连写入
-        else 跨节点 (RDMA 22 GB/s)
-            HIXL->>P_HBM: 读取 K,V
-            HIXL->>NIC: 通过 RNIC 发送
-            NIC->>D_NIC: RDMA 网络
-            D_NIC->>D_HBM: 直接写入远端 HBM
-        end
-        Note over D_NPU: 远端 NPU 无感知<br/>数据已到达 HBM
-    end
-
-    rect rgb(255, 230, 245)
-        Note over D_NPU,D_HBM: Step 4: Decode 读取 KV Cache
-        D_NPU->>D_HBM: 从本地 HBM 读取 K,V
-        D_NPU->>D_NPU: Attention 计算
-    end
-      `} />
-
-      <h4>单边通信 vs 双边通信</h4>
-      <p>HIXL 的核心优势在于<strong>单边通信模型</strong>，与传统双边通信有本质区别：</p>
-
-      <table>
-        <thead><tr><th>维度</th><th>传统双边通信</th><th>HIXL 单边通信</th></tr></thead>
-        <tbody>
-          <tr><td><strong>通信握手</strong></td><td>发送方发起 → 接收方确认 → 开始传输</td><td>发送方直接写入远端内存，无需确认</td></tr>
-          <tr><td><strong>远端 CPU 参与</strong></td><td>需要远端 CPU 处理接收请求</td><td>远端 CPU 零参与</td></tr>
-          <tr><td><strong>内存拷贝</strong></td><td>至少 2 次（发送缓冲 → 网络 → 接收缓冲）</td><td>0 次（直接写入远端 HBM）</td></tr>
-          <tr><td><strong>延迟</strong></td><td>高（握手 + 拷贝）</td><td>低（仅传输延迟）</td></tr>
-          <tr><td><strong>适用场景</strong></td><td>通用数据传输</td><td>KV Cache 等确定性大块传输</td></tr>
-        </tbody>
-      </table>
-
-      <h4>HIXL 多协议传输</h4>
-      <table>
-        <thead><tr><th>协议</th><th>带宽</th><th>触发条件</th><th>P/D 分离场景</th></tr></thead>
-        <tbody>
-          <tr><td><strong>HCCS</strong></td><td>119 GB/s</td><td>同节点内 P → D（同节点不同 NPU）</td><td>Prefill NPU 0 → Decode NPU 1（同节点，片间直连）</td></tr>
-          <tr><td><strong>RDMA</strong></td><td>22 GB/s</td><td>跨节点 P → D（不同节点，有 RNIC）</td><td>Prefill 节点 A → Decode 节点 B（跨节点）</td></tr>
-          <tr><td><strong>UB (URMA)</strong></td><td>取决于配置</td><td>A5 芯片跨节点 P → D</td><td>下一代 A5 芯片跨节点传输</td></tr>
-        </tbody>
-      </table>
-
-      <CodeBlock language="python" title="HIXL Engine P/D 数据传输核心实现" code={`class HIXLEngine:
-    """HIXL Engine: Ascend 平台 P/D 数据传输 (单边零拷贝)"""
-
+# 方式一：Transfer Engine Connector（直接传输）
+# 适用于 P/D 分离场景，Prefill 节点直接向 Decode 节点传输 KV Cache
+class MooncakeConnector:
     def __init__(self):
-        self.engine = hixl.Engine()
-        self.registered: dict[int, MemoryHandle] = {}
+        self.engine = TransferEngine()
+        self.engine.init(metadata_addr, local_server)
 
-    # ===== P/D 分离核心流程 =====
+    def send_kv_cache(self, blocks, target_segment):
+        """Prefill 完成后，发送 KV Cache 到目标 Decode"""
+        for block in blocks:
+            self.engine.registerLocalMemory(block.data_ptr(), block.size())
+        self.engine.submitTransfer(batch_id, transfer_entries)
 
-    def init_pd_transfer(self, local_dev: int, remote_dev: int,
-                         protocol: str = "hccs"):
-        """初始化 P/D 传输通道"""
-        self.engine.init({
-            "devices": [local_dev, remote_dev],
-            "protocol": protocol,  # hccs / rdma / ub
-            "links_per_dev": 4,    # 多链路并行
-        })
+# 方式二：MooncakeStoreConnector（存储池）
+# 适用于 KV Cache 复用场景，多个推理实例共享 KV Cache
+class MooncakeStoreConnector:
+    def __init__(self):
+        self.store = MooncakeDistributedStore()
+        self.store.setup(master_addr, local_server, segments)
 
-    def register_kv_buffer(self, dev_id: int, npu_ptr: int,
-                           size: int) -> MemoryHandle:
-        """注册 NPU HBM 为远端可访问内存"""
-        handle = self.engine.register_memory(
-            ptr=npu_ptr,
-            size=size,
-            flags=hixl.MEM_DEVICE,  # 设备内存 (HBM)
-        )
-        self.registered[dev_id] = handle
-        return handle
+    def save_kv_cache(self, key, kv_cache):
+        """存入全局 KV Pool"""
+        self.store.put(key, kv_cache)
 
-    def prefill_to_decode_transfer_async(self, blocks: list[KVBlock],
-                                          src_dev: int, dst_dev: int):
-        """P/D 分离: Prefill NPU → Decode NPU (单边异步)"""
-        remote_handle = self.registered[dst_dev]
+    def load_kv_cache(self, key):
+        """从全局 KV Pool 加载"""
+        return self.store.get(key)`} />
 
-        futures = []
-        for layer_id in range(blocks[0].num_layers):
-            for block in blocks:
-                kv_layer = block.get_kv_layer(layer_id)
+      <h3>4.3 SGLang Integration — HiCache</h3>
+      <CodeBlock language="python" code={`# SGLang 的多级 KV Cache 集成
 
-                # 单边异步传输:
-                #   源 NPU → HIXL Engine → 直接写入远端 NPU HBM
-                #   远端 NPU 无需 CPU 参与
-                future = self.engine.transfer_async(
-                    link=self._get_link(src_dev, dst_dev),
-                    src=kv_layer.npu_ptr,           # 源 NPU HBM 地址
-                    dst=remote_handle.remote_addr,  # 目标 NPU HBM 地址
-                    size=kv_layer.byte_size,
-                )
-                futures.append(future)
+# 三级缓存架构：
+# L1: GPU VRAM (RadixAttention 本地缓存)
+# L2: CPU DRAM (Mooncake Store MEMORY)
+# L3: SSD (Mooncake Store DISK)
 
-            # 传输 layer_id 的同时计算 layer_id+1
-            # (Layer-wise Pipeline)
+# 工作流程：
+# 1. 请求到达 → 查 L1 (GPU VRAM) → 命中则直接复用
+# 2. L1 未命中 → 查 L2 (Mooncake Store DRAM) → 通过 Transfer Engine 拉取到 GPU
+# 3. L2 未命中 → 查 L3 (Mooncake Store SSD) → 读取到 DRAM 再传到 GPU
+# 4. L3 未命中 → 重新计算 Prefill
 
-        # 等待所有传输完成
-        for f in futures:
-            f.wait()
+# SGLang 的 HiCache 通过 Mooncake Store 将 Radix Tree 前缀匹配
+# 从单机扩展到集群级别，实现跨实例的 KV Cache 共享`} />
 
-    def _get_link(self, src_dev: int, dst_dev: int):
-        """获取设备间链路"""
-        # 首次调用时建立连接
-        return self.engine.connect(
-            local_dev=src_dev,
-            remote_dev=dst_dev,
-            remote_mem=self.registered[dst_dev],
-        )`} />
-
-      {/* ==================== 6.3 两种引擎对比 ==================== */}
-      <h3>两种传输引擎全面对比</h3>
-
-      <h4>P/D 分离数据传输流程对比</h4>
-
-      <MermaidDiagram maxWidth={520} chart={`
-graph TB
-    subgraph NVIDIA["Transfer Engine &#40;NVIDIA&#41;"]
-        direction TB
-        N1["Prefill GPU<br/>H100/A100"]
-        N2["GPU Direct RDMA<br/>GPU HBM → NIC → 网络"]
-        N3["Decode GPU<br/>L40S/A10"]
-        N4["特点: GPU 直接控制 NIC<br/>全程不经过 CPU"]
-    end
-
-    subgraph Ascend["HIXL Engine &#40;Ascend&#41;"]
-        direction TB
-        A1["Prefill NPU<br/>A3/A5"]
-        A2["单边零拷贝<br/>NPU HBM → HIXL → 远端 HBM"]
-        A3["Decode NPU<br/>A3/A5"]
-        A4["特点: 远端 NPU CPU 零参与<br/>零内存拷贝"]
-    end
-
-    N1 --> N2 --> N3
-    A1 --> A2 --> A3
-      `} />
-
-      <table>
-        <thead><tr><th>对比维度</th><th>Transfer Engine (NVIDIA)</th><th>HIXL Engine (Ascend)</th></tr></thead>
-        <tbody>
-          <tr><td><strong>通信模型</strong></td><td>GPU Direct RDMA（GPU 控制 NIC）</td><td>单边零拷贝（HIXL Engine 控制）</td></tr>
-          <tr><td><strong>CPU 参与</strong></td><td>仅初始化，传输过程不参与</td><td>完全不需要 CPU 参与</td></tr>
-          <tr><td><strong>内存拷贝次数</strong></td><td>0 次（GPU HBM → NIC → GPU HBM）</td><td>0 次（HBM → HIXL → HBM）</td></tr>
-          <tr><td><strong>同节点最高带宽</strong></td><td>NVLink: 900 GB/s</td><td>HCCS: 119 GB/s</td></tr>
-          <tr><td><strong>跨节点最高带宽</strong></td><td>InfiniBand NDR: 400 GB/s</td><td>RDMA: 22 GB/s</td></tr>
-          <tr><td><strong>传输协议</strong></td><td>NVLink / RDMA (IB) / TCP</td><td>HCCS / RDMA / UB (URMA)</td></tr>
-          <tr><td><strong>多链路并行</strong></td><td>单链路（依赖硬件多 QP）</td><td>多链路（HIXL_E2E_LINKS_PER_DEV=4）</td></tr>
-          <tr><td><strong>Layer-wise Pipeline</strong></td><td>✅ 逐层异步传输</td><td>✅ 逐层异步传输</td></tr>
-          <tr><td><strong>去重传输</strong></td><td>✅ 内置</td><td>✅ 通过 LLM-DataDist V2</td></tr>
-          <tr><td><strong>硬件抽象</strong></td><td>绑定 NVIDIA GPU</td><td>屏蔽 A2/A3/A5 代际差异</td></tr>
-          <tr><td><strong>跨代兼容</strong></td><td>H100/A100/L40S 混用</td><td>A2/A3/A5 异构混合部署</td></tr>
-          <tr><td><strong>D2H/H2D 支持</strong></td><td>通过 cudaMemcpy</td><td>原生 D2D / D2H / H2D 三模式</td></tr>
-          <tr><td><strong>FabricMem</strong></td><td>❌ 无</td><td>✅ 超节点全局内存池</td></tr>
-          <tr><td><strong>Host RoCE</strong></td><td>❌ 无</td><td>✅ 下一代芯片支持</td></tr>
-          <tr><td><strong>通知机制</strong></td><td>RDMA Completion Queue</td><td>engine.notify() + signal</td></tr>
-          <tr><td><strong>Python API</strong></td><td>✅ 通过 pybind11</td><td>✅ 原生 pybind11</td></tr>
-          <tr><td><strong>适用硬件</strong></td><td>NVIDIA GPU (H100/A100/L40S)</td><td>Ascend NPU (A2/A3/A5)</td></tr>
-          <tr><td><strong>生产验证</strong></td><td>Kimi 40万+ GPU</td><td>vllm-ascend / sglang</td></tr>
-        </tbody>
-      </table>
-
-      <h4>P/D 分离场景下的选型建议</h4>
-
-      <table>
-        <thead><tr><th>场景</th><th>推荐引擎</th><th>原因</th></tr></thead>
-        <tbody>
-          <tr><td><strong>NVIDIA GPU 集群</strong></td><td>Transfer Engine</td><td>GPU Direct RDMA 400 GB/s，配套生态最成熟</td></tr>
-          <tr><td><strong>Ascend NPU 集群</strong></td><td>HIXL Engine</td><td>单边零拷贝，原生适配 Ascend 硬件</td></tr>
-          <tr><td><strong>NVIDIA + Ascend 混合</strong></td><td>两者共存</td><td>Master Server 根据节点类型自动选择 Connector</td></tr>
-          <tr><td><strong>同节点 P/D 配对</strong></td><td>Transfer Engine (NVLink) / HIXL (HCCS)</td><td>同节点带宽最高，延迟最低，P/D 分离最优解</td></tr>
-          <tr><td><strong>超大规模跨节点</strong></td><td>Transfer Engine (RDMA)</td><td>InfiniBand 400 GB/s 优势明显</td></tr>
-          <tr><td><strong>需要 D2H/H2D 分层存储</strong></td><td>HIXL Engine</td><td>原生 D2H/H2D 支持，方便 KV Cache 下沉到 CPU DDR</td></tr>
-        </tbody>
-      </table>
-
-      <Callout type="tip">
-        <strong>关键差异总结：</strong>
-        <ul>
-          <li><strong>Transfer Engine</strong> 依赖 GPU Direct RDMA，需要 NVIDIA GPU + InfiniBand 网卡，带宽高但硬件绑定强</li>
-          <li><strong>HIXL Engine</strong> 单边零拷贝通信，支持跨代硬件混用，灵活性更高但跨节点带宽受限于 Ascend 硬件</li>
-          <li>两者在 P/D 分离场景下的<strong>逻辑流程一致</strong>：Prefill 产生 KV Cache → 逐层传输 → Decode 读取，差异仅在底层传输机制</li>
-          <li>Mooncake Master Server 通过统一的 <code>TransferEngine</code> 接口屏蔽底层差异，实现<strong>一次开发，多平台部署</strong></li>
-        </ul>
+      <Callout type="tip" title="P/D 分离的 Mooncake 优势">
+        <p><strong>独立扩缩</strong>：Prefill Pool 和 Decode Pool 可以按不同比例扩缩容，无需绑定</p>
+        <p><strong>GPU 异构</strong>：Prefill 用高算力 GPU（H100），Decode 用低成本 GPU（L40S），降低总成本</p>
+        <p><strong>故障隔离</strong>：Prefill 或 Decode 节点故障不影响对方 Pool，配合 Mooncake EP 的容错机制</p>
+        <p><strong>KV Cache 复用</strong>：多个请求共享前缀时，只需一次 Prefill，通过 Store 共享给所有 Decode 节点</p>
       </Callout>
 
-      {/* ==================== 7. 与 vLLM P/D 分离对比 ==================== */}
-      <div className="section-divider"><span>与 vLLM P/D 分离对比</span></div>
+      {/* ==================== 5. 网络传输层 ==================== */}
+      <h2>网络传输层 — 拓扑感知与多路径</h2>
 
+      <MermaidDiagram chart={`
+graph TB
+    subgraph App["上层应用"]
+        Req["TransferRequest<br/>{src, dst, length, opcode}"]
+    end
+
+    subgraph TE["TransferEngine"]
+        Topo["Topology<br/>拓扑发现"]
+        Select["MultiTransport<br/>路径选择"]
+        Agg["带宽聚合<br/>多 NIC 并行"]
+        Failover["故障转移<br/>自动 fallback"]
+    end
+
+    subgraph Paths["可选路径"]
+        P1["RDMA NIC 0<br/>200 Gbps"]
+        P2["RDMA NIC 1<br/>200 Gbps"]
+        P3["TCP<br/>兜底路径"]
+        P4["NVLink<br/>节点内"]
+    end
+
+    Req --> Topo
+    Topo --> Select
+    Select --> Agg
+    Agg --> Failover
+    Failover --> P1
+    Failover --> P2
+    Failover --> P3
+    Failover --> P4
+`} maxWidth={600} />
+
+      <h3>拓扑感知路由</h3>
+      <CodeBlock language="cpp" code={`// mooncake-transfer-engine/include/topology.h
+// 每个节点启动时发现本地拓扑：
+// 1. 扫描所有 NIC 设备和 NUMA 节点
+// 2. 构建 (NIC, NUMA, GPU) 三元组的亲和性矩阵
+// 3. 上报到 TransferMetadata（etcd 或 HTTP）
+
+// 传输时，根据源和目标选择最优路径：
+// - 同一 NUMA 节点 → 优先使用本地 NIC
+// - 不同 NUMA 节点 → 选择对应 NUMA 的 NIC
+// - 跨机器 → 优先 RDMA，fallback TCP
+// - 多 NIC → 自动 Striping 聚合带宽`} />
+
+      <h3>性能数据</h3>
+      <p>基于 40GB 数据传输（等效 LLaMA3-70B 128K token 的 KV Cache）：</p>
       <table>
-        <thead><tr><th>维度</th><th>Mooncake</th><th>vLLM Disaggregated</th></tr></thead>
+        <thead><tr><th>配置</th><th>带宽</th><th>相对 TCP</th></tr></thead>
         <tbody>
-          <tr><td><strong>设计哲学</strong></td><td>KVCache 为中心，传输优先</td><td>调度为中心，兼容优先</td></tr>
-          <tr><td><strong>传输引擎</strong></td><td>自研 Transfer Engine (RDMA/TCP)</td><td>NIXL / NCCL / Mooncake 可插拔</td></tr>
-          <tr><td><strong>Master 调度</strong></td><td>全局 Master + 拓扑感知</td><td>KVTransferAgent + 分布式协调</td></tr>
-          <tr><td><strong>GPU 异构</strong></td><td>✅ 原生支持</td><td>✅ 支持</td></tr>
-          <tr><td><strong>去重传输</strong></td><td>✅ 内置</td><td>❌</td></tr>
-          <tr><td><strong>Layer-wise Pipeline</strong></td><td>✅ 内置</td><td>✅ 支持</td></tr>
-          <tr><td><strong>生产规模</strong></td><td>40 万+ GPU (Kimi)</td><td>大规模部署</td></tr>
-          <tr><td><strong>开源协议</strong></td><td>Apache 2.0</td><td>Apache 2.0</td></tr>
+          <tr><td>4×200 Gbps RoCE</td><td>87 GB/s</td><td>2.4x</td></tr>
+          <tr><td>8×400 Gbps RoCE</td><td>190 GB/s</td><td>4.6x</td></tr>
+          <tr><td>TCP (baseline)</td><td>~36 GB/s</td><td>1x</td></tr>
         </tbody>
       </table>
 
-      <ResourceTable resources={[
-        { name: 'Mooncake 论文', url: 'https://arxiv.org/abs/2407.00079', desc: 'Mooncake: A KVCache-Centric Disaggregated Architecture for LLM Serving' },
-        { name: 'Mooncake 源码', url: 'https://github.com/kvcache-ai/Mooncake', desc: 'Mooncake 社区版 KV Cache 传输框架' },
-        { name: 'HIXL (Ascend 适配)', url: 'https://gitcode.com/cann/hixl', desc: '昇腾单边通信库，Mooncake Ascend 传输引擎' },
-        { name: 'Mooncake KVPool 指南', url: 'https://gitcode.com/cann/hixl/wiki/Mooncake-KVPool%E6%8C%87%E5%8D%97', desc: 'Mooncake KVPool Ascend 部署指南' },
-        { name: 'Splitwise 论文', url: 'https://arxiv.org/abs/2311.18677', desc: 'P/D 分离架构先驱，Mooncake 参考设计' },
-        { name: 'DistServe 论文', url: 'https://arxiv.org/abs/2401.09670', desc: 'Disaggregated Prefill and Decoding for LLM Serving' },
-      ]} />
+      {/* ==================== 6. 弹性专家并行 ==================== */}
+      <h2>弹性专家并行 (Mooncake EP)</h2>
+      <CodeBlock language="cpp" code={`// mooncake-ep/include/mooncake_ep_device.h
+// Mooncake EP 提供容错 MoE 通信：
+// 1. 兼容 DeepEP 的 dispatch/combine API
+// 2. 增加 active_ranks 意识 —— 感知失效 rank
+// 3. 路由绕过失效节点，继续使用健康专家
+// 4. 弹性恢复 —— 替换进程可重新加入 group
+
+// 在 P/D 分离中的角色：
+// - 当 Decode Pool 中的某个 GPU 故障时
+// - EP 自动将请求路由到其他健康的 Expert
+// - 配合 Mooncake Store 的副本机制，从其他节点恢复 KV Cache`} />
+
+      <Callout type="warning" title="关键设计取舍">
+        <p><strong>Master 元数据瓶颈</strong>：Master 只管理元数据（对象索引、副本位置），所有数据走 P2P 传输。但频繁的小对象操作仍可能对 Master 造成压力。Mooncake 通过 RPC 连接池、批量操作（BatchPut、BatchGet）和客户端缓存优化。</p>
+        <p><strong>副本一致性</strong>：Mooncake Store 采用最终一致性模型。PutEnd 确认后副本立即可读，但跨副本同步通过后台 TaskManager 异步完成。</p>
+        <p><strong>内存管理</strong>：每个 Segment 绑定独立的 Allocator 实例，Master 通过全局视图做分配决策，但实际分配和释放由各节点本地执行，避免分布式锁。</p>
+      </Callout>
+
+      {/* ==================== 7. 集成生态 ==================== */}
+      <h2>集成生态</h2>
+      <ResourceTable
+        resources={[
+          { type: '论文', title: 'Mooncake (FAST 2025 Best Paper)', url: 'https://www.usenix.org/system/files/fast25-qin.pdf', desc: 'KVCache-centric Disaggregated Architecture for LLM Serving' },
+          { type: '论文', title: 'Mooncake 技术报告 (v2)', url: 'https://arxiv.org/abs/2504.17734', desc: '最新技术报告，涵盖 Transfer Engine + Store + EP' },
+          { type: '文档', title: 'Mooncake 官方文档', url: 'https://kvcache-ai.github.io/Mooncake/', desc: '完整 API 文档与部署指南' },
+          { type: '文档', title: 'vLLM Mooncake Store 集成', url: 'https://vllm.ai/blog/2026-05-06-mooncake-store', desc: 'vLLM 分布式 KV Cache 池化' },
+          { type: '文档', title: 'SGLang HiCache 集成', url: 'https://lmsys.org/blog/2025-09-10-sglang-hicache/', desc: 'SGLang 多级 KV Cache 存储' },
+          { type: '源码', title: 'mooncake-transfer-engine', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-transfer-engine', desc: '核心传输引擎' },
+          { type: '源码', title: 'mooncake-store', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-store', desc: '分布式 KV 存储引擎' },
+          { type: '源码', title: 'mooncake-integration', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-integration', desc: 'Python 绑定与框架集成层' },
+        ]}
+      />
     </div>
   );
 }

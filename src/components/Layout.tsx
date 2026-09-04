@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { TableOfContents } from './TableOfContents';
-import { ExportButton } from './ExportButton';
 import { BackToTop } from './BackToTop';
+import { useAuth } from './AuthContext';
 
 interface SidebarItem {
   to?: string;
   label: string;
   end?: boolean;
+  external?: boolean;
   children?: SidebarItem[];
 }
 
-const sidebar: SidebarItem[] = [
+const llmSidebar: SidebarItem[] = [
   { to: '/', label: '首页', end: true },
   { to: '/overview', label: '总体架构' },
   {
@@ -48,7 +49,7 @@ const sidebar: SidebarItem[] = [
       },
       { to: '/pd-separation', label: 'P/D 分离' },
       { to: '/serving-scheduler', label: '服务调度' },
-      { to: '/router', label: '服务调度器' },
+      { to: '/router', label: 'AIBrix' },
       {
         label: 'Mooncake',
         children: [
@@ -61,6 +62,36 @@ const sidebar: SidebarItem[] = [
   { to: '/attention-close-reading', label: 'Attention (精读)' },
   { to: '/attention-en', label: 'Attention (论文-EN)' },
   { to: '/infratech', label: 'InfraTech' },
+  {
+    label: '模型可视化',
+    children: [
+      { to: '/business-process', label: 'LLM 业务处理视图' },
+      { to: '/inferflux/gpt-3d.html', label: 'GPT 架构 3D 透视', external: true },
+      { to: '/model-structure-3d', label: 'MiMo-V2.5 模型结构 3D' },
+      { to: '/transformer-explainer', label: 'Transformer Explainer (GPT-2)' },
+      { to: '/inferflux/transformer-3d.html', label: 'Transformer + Speculative 3D', external: true },
+      { to: '/inferflux/pd-disagg.html', label: 'PD 分离模拟器', external: true },
+      { to: '/inferflux/vllm-pd-glm.html', label: 'vLLM P/D 分离模拟器', external: true },
+    ],
+  },
+];
+
+const autoDriveSidebar: SidebarItem[] = [
+  { to: '/auto-drive', label: '首页', end: true },
+  { to: '/auto-drive/overview', label: '总体架构' },
+  {
+    label: '训练框架',
+    children: [
+      { to: '/auto-drive/voyager', label: 'Voyager' },
+      { to: '/auto-drive/drivevla-w0', label: 'DriveVLA-W0' },
+      { to: '/auto-drive/emu3', label: 'Emu3' },
+      { to: '/auto-drive/pi-0-5', label: 'Pi-0.5' },
+      { to: '/auto-drive/pi0', label: 'π0' },
+      { to: '/auto-drive/mtr', label: 'MTR' },
+      { to: '/auto-drive/uniad', label: 'UniAD' },
+      { to: '/auto-drive/cosmos-framework', label: 'Cosmos-Framework' },
+    ],
+  },
 ];
 
 function SidebarItemRenderer({ item, collapsed, toggleGroup }: {
@@ -94,6 +125,20 @@ function SidebarItemRenderer({ item, collapsed, toggleGroup }: {
     );
   }
 
+  if (item.external && item.to) {
+    return (
+      <a
+        key={item.to}
+        href={item.to}
+        target="_blank"
+        rel="noreferrer"
+        className="sidebar-link sidebar-child-link"
+      >
+        {item.label}
+      </a>
+    );
+  }
+
   return (
     <NavLink key={item.to} to={item.to!} end={item.end} className={({ isActive }) =>
       `sidebar-link sidebar-child-link ${isActive ? 'active' : ''}`
@@ -105,13 +150,21 @@ function SidebarItemRenderer({ item, collapsed, toggleGroup }: {
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isLoggedIn, username, logout } = useAuth();
 
   // 折叠/展开状态：默认全部折叠
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 'vLLM': true, '框架专题': true, 'KV Cache': true, 'KV Pool': true, 'Mooncake': true });
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 'vLLM': true, '框架专题': true, 'KV Cache': true, 'KV Pool': true, 'Mooncake': true, '训练框架': true, '模型可视化': true });
 
   // 左侧边栏和右侧目录栏的显隐状态
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [tocHidden, setTocHidden] = useState(false);
+
+  // 侧边栏 Tab 切换：LLM推理框架 / 自动驾驶
+  const isAutoDrive = location.pathname.startsWith('/auto-drive');
+  const [sidebarTab, setSidebarTab] = useState<'llm' | 'auto'>(isAutoDrive ? 'auto' : 'llm');
+
+  const currentSidebar = sidebarTab === 'llm' ? llmSidebar : autoDriveSidebar;
 
   const toggleGroup = (label: string) => {
     setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -120,14 +173,42 @@ export function Layout() {
   return (
     <div className="flex min-h-screen">
       {/* Left Sidebar */}
-      <aside className={`sidebar-panel ${sidebarHidden ? 'collapsed' : ''}`} style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--sidebar-border)' }}>
+      <aside className={`sidebar-panel ${sidebarHidden ? 'collapsed' : ''}`} style={{ background: 'var(--vp-sidebar-bg)', borderColor: 'var(--vp-sidebar-divider)' }}>
         <div className="sidebar-inner">
-          <div className="p-5 border-b" style={{ borderColor: 'var(--sidebar-divider)' }}>
-            <a href="/" className="text-base font-bold no-underline gradient-text">LLM 推理框架</a>
-            <p className="text-xs mt-1" style={{ color: 'var(--sidebar-text)' }}>学习指南</p>
+          {/* Tab 切换 */}
+          <div className="p-3" style={{ borderColor: 'var(--vp-sidebar-divider)' }}>
+            <div style={{
+              display: 'flex', background: 'var(--vp-c-bg)', borderRadius: 'var(--radius)',
+              border: '1px solid var(--vp-c-divider)', overflow: 'hidden',
+            }}>
+              <button
+                onClick={() => setSidebarTab('llm')}
+                style={{
+                  flex: 1, padding: '6px 0', fontSize: '0.8rem', fontWeight: sidebarTab === 'llm' ? 600 : 400,
+                  color: sidebarTab === 'llm' ? '#fff' : 'var(--vp-c-text-2)',
+                  background: sidebarTab === 'llm' ? 'var(--vp-c-brand)' : 'transparent',
+                  border: 'none', cursor: 'pointer', borderRadius: sidebarTab === 'llm' ? 'calc(var(--radius) - 1px)' : 0,
+                  transition: 'all 0.15s',
+                }}
+              >
+                LLM 推理
+              </button>
+              <button
+                onClick={() => setSidebarTab('auto')}
+                style={{
+                  flex: 1, padding: '6px 0', fontSize: '0.8rem', fontWeight: sidebarTab === 'auto' ? 600 : 400,
+                  color: sidebarTab === 'auto' ? '#fff' : 'var(--vp-c-text-2)',
+                  background: sidebarTab === 'auto' ? 'var(--vp-c-brand)' : 'transparent',
+                  border: 'none', cursor: 'pointer', borderRadius: sidebarTab === 'auto' ? 'calc(var(--radius) - 1px)' : 0,
+                  transition: 'all 0.15s',
+                }}
+              >
+                自动驾驶
+              </button>
+            </div>
           </div>
           <nav className="px-3 py-3 space-y-0.5 flex-1">
-            {sidebar.map((item) =>
+            {currentSidebar.map((item) =>
               item.children ? (
                 <SidebarItemRenderer
                   key={item.label}
@@ -144,10 +225,29 @@ export function Layout() {
               )
             )}
           </nav>
-          <div className="px-5 py-4 border-t" style={{ borderColor: 'var(--sidebar-divider)' }}>
-            <p className="text-xs" style={{ color: 'var(--sidebar-group-text)' }}>LLM 推理框架</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--sidebar-text)' }}>学习指南</p>
-          </div>
+          {isLoggedIn ? (
+            <div className="px-4 py-3 border-t" style={{ borderColor: 'var(--vp-sidebar-divider)' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.78rem', color: 'var(--vp-c-text-2)' }}>{username}</span>
+              </div>
+              <button
+                onClick={() => { logout(); navigate('/'); }}
+                style={{
+                  width: '100%', padding: '5px 0',
+                  fontSize: '0.78rem', fontWeight: 500,
+                  color: 'var(--vp-c-text-2)',
+                  background: 'none', border: '1px solid var(--vp-c-divider)',
+                  borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--vp-c-text-2)'; e.currentTarget.style.borderColor = 'var(--vp-c-divider)'; }}
+              >
+                退出登录
+              </button>
+            </div>
+          ) : null}
         </div>
         <button
           onClick={() => setSidebarHidden(!sidebarHidden)}
@@ -159,15 +259,12 @@ export function Layout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 max-w-5xl mx-10 px-12 py-12">
-        <div className="flex justify-end mb-2">
-          <ExportButton />
-        </div>
+      <main className="flex-1 min-w-0 max-w-4xl mx-auto px-12 py-12">
         <Outlet />
       </main>
 
       {/* Right TOC */}
-      <aside className={`toc-panel ${tocHidden ? 'collapsed' : ''}`} style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+      <aside className={`toc-panel ${tocHidden ? 'collapsed' : ''}`} style={{ background: 'var(--vp-c-bg)', borderColor: 'var(--vp-c-divider)' }}>
         <div className="toc-inner">
           <div className="p-4" key={location.pathname}>
             <TableOfContents />

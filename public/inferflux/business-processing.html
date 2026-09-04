@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LLM 业务处理视图 · 3 场景交互可视化</title>
+<style>
+:root {
+  --bg: #0a0e1a;
+  --bg2: #111727;
+  --panel: rgba(17, 23, 39, 0.84);
+  --border: rgba(120, 150, 220, 0.22);
+  --text: #e8edf7;
+  --muted: #97a3be;
+  --accent: #5b8cff;
+  --attn: #4f9dff;
+  --ffn: #ff9f43;
+  --norm: #38d39f;
+  --embed: #b07bff;
+  --soft: #ff6b9d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  background: radial-gradient(1200px 800px at 70% -10%, #16203a 0%, var(--bg) 55%);
+  color: var(--text);
+  overflow: hidden;
+}
+#webgl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+
+/* 顶栏 */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; gap: 18px; flex-wrap: wrap;
+  background: linear-gradient(180deg, rgba(8,12,24,0.94), rgba(8,12,24,0.0));
+  pointer-events: none;
+}
+#topbar > * { pointer-events: auto; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .logo { font-size: 26px; color: var(--accent); filter: drop-shadow(0 0 8px var(--accent)); }
+.brand h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+.brand p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+#tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tab {
+  background: var(--panel); color: var(--muted);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 13px; font-size: 13px; cursor: pointer;
+  backdrop-filter: blur(8px); transition: all 0.18s ease;
+}
+.tab:hover { color: var(--text); border-color: var(--accent); }
+.tab.active { color: #fff; background: linear-gradient(180deg, #2c4a9e, #1d2f63); border-color: var(--accent); box-shadow: 0 0 16px rgba(91,140,255,0.35); }
+
+/* 右侧讲解面板 */
+#infopanel {
+  position: fixed; top: 76px; right: 14px; z-index: 9;
+  width: 330px; max-height: calc(100vh - 165px);
+  overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 17px; backdrop-filter: blur(10px);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+}
+#infopanel h2 { font-size: 16px; margin-bottom: 8px; color: #fff; }
+#infopanel h3 { font-size: 13px; margin: 14px 0 6px; color: var(--accent); }
+#infopanel p { font-size: 13px; line-height: 1.7; color: #cdd6ea; margin-bottom: 8px; }
+#infopanel ul { margin: 6px 0 8px 18px; }
+#infopanel li { font-size: 12.5px; line-height: 1.65; color: #cdd6ea; margin-bottom: 4px; }
+#infopanel .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 6px; margin: 2px 4px 2px 0; }
+#infopanel code { background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 5px; font-size: 12px; color: #ffd9a0; }
+.formula { background: rgba(0,0,0,0.3); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 6px; font-family: "Cambria Math", serif; font-size: 14px; margin: 8px 0; color: #ffe9b0; }
+
+/* 场景控制区 */
+#scene-controls {
+  position: fixed; left: 14px; top: 86px; z-index: 9;
+  width: 315px; max-height: calc(100vh - 170px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.panel-card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 13px; backdrop-filter: blur(10px);
+}
+.panel-card h3 { font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+.panel-card label { font-size: 12px; color: var(--muted); display: block; margin: 8px 0 4px; }
+.panel-card input[type="text"], .panel-card select, .panel-card textarea {
+  width: 100%; background: rgba(0,0,0,0.35); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 8px; font-size: 13px; font-family: inherit;
+}
+.panel-card textarea { resize: vertical; min-height: 48px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip {
+  background: rgba(91,140,255,0.14); border: 1px solid var(--border);
+  color: var(--text); border-radius: 999px; padding: 5px 11px; font-size: 12px; cursor: pointer; transition: 0.15s;
+}
+.chip:hover { background: rgba(91,140,255,0.3); }
+.chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.bigbtn {
+  width: 100%; margin-top: 12px; padding: 10px; font-size: 14px; font-weight: 600;
+  background: linear-gradient(180deg, #2c4a9e, #1d2f63); color: #fff;
+  border: 1px solid var(--accent); border-radius: 10px; cursor: pointer; transition: 0.15s;
+}
+.bigbtn:hover { box-shadow: 0 0 18px rgba(91,140,255,0.5); }
+.bigbtn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+.stat-line { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+.stat-line b { color: var(--text); }
+
+/* 底栏 */
+#bottombar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+  display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+  background: linear-gradient(0deg, rgba(8,12,24,0.94), rgba(8,12,24,0.0));
+  flex-wrap: wrap;
+}
+.ctrl {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 9px; padding: 8px 14px; font-size: 13px; cursor: pointer; backdrop-filter: blur(8px); transition: 0.15s;
+}
+.ctrl:hover { border-color: var(--accent); color: #fff; }
+.ctrl.on { background: linear-gradient(180deg, #2c4a9e, #1d2f63); border-color: var(--accent); }
+.speed { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.speed input { width: 110px; }
+#hint { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+#loading {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--bg); color: var(--muted); font-size: 15px; z-index: 50;
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(120,150,220,0.3); border-radius: 8px; }
+
+@media (max-width: 1100px) {
+  #infopanel { width: 270px; }
+  #scene-controls { width: 260px; }
+}
+</style>
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <div>
+        <h1>LLM 业务处理视图</h1>
+        <p>请求如何流过推理服务 —— 从入口到返回，从底层模型到 P/D 分离</p>
+      </div>
+    </div>
+    <nav id="tabs">
+      <button class="tab active" data-scene="pipeline">① 推理请求全流程</button>
+      <button class="tab" data-scene="transformer">② Transformer 内部处理</button>
+      <button class="tab" data-scene="pd">③ P/D 分离业务处理</button>
+    </nav>
+  </header>
+
+  <canvas id="webgl"></canvas>
+
+  <aside id="infopanel">
+    <div id="info-content"></div>
+  </aside>
+
+  <div id="scene-controls"></div>
+
+  <footer id="bottombar">
+    <button id="btn-play" class="ctrl">▶ 播放动画</button>
+    <button id="btn-step" class="ctrl">⏭ 单步</button>
+    <button id="btn-reset" class="ctrl">↺ 重置</button>
+    <label class="speed">速度
+      <input id="speed" type="range" min="0.2" max="3" step="0.1" value="1" />
+    </label>
+    <span id="hint">提示：鼠标左键旋转，滚轮缩放，右键平移。点击模型上的方块查看说明。</span>
+  </footer>
+
+  <div id="loading">正在加载 3D 引擎…</div>
+
+  <script type="module">
+import * as THREE from './vendor/three.module.js';
+import { OrbitControls } from './vendor/jsm/controls/OrbitControls.js';
+
+/* ============================================================
+   共享工具：文字精灵、方块、连线、颜色、确定性随机数、softmax
+   （移植自 70_demo-attention-transformer/js/utils.js）
+   ============================================================ */
+const U = (function () {
+  const COLORS = {
+    attn: 0x4f9dff, ffn: 0xff9f43, norm: 0x38d39f, embed: 0xb07bff,
+    soft: 0xff6b9d, token: 0x6c8cff, q: 0xff6b9d, k: 0x4f9dff, v: 0x38d39f,
+    glow: 0xffe08a, grid: 0x2a3656,
+    client: 0x9fb0e0, router: 0xb07bff, kv: 0x38d39f, prefill: 0x4f9dff,
+    decode: 0xff9f43, sample: 0xff6b9d,
+  };
+
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function textSprite(text, opts = {}) {
+    const {
+      fontSize = 48, color = '#ffffff', bg = 'rgba(0,0,0,0)',
+      pad = 16, weight = '600', font = 'Microsoft YaHei, Segoe UI, sans-serif',
+      scale = 1, border = null,
+    } = opts;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${weight} ${fontSize}px ${font}`;
+    const lines = String(text).split('\n');
+    let w = 0;
+    lines.forEach(l => { w = Math.max(w, ctx.measureText(l).width); });
+    canvas.width = Math.ceil(w + pad * 2);
+    canvas.height = Math.ceil(lines.length * fontSize * 1.25 + pad * 2);
+    const c = canvas.getContext('2d');
+    if (bg !== 'rgba(0,0,0,0)') {
+      c.fillStyle = bg;
+      roundRect(c, 0, 0, canvas.width, canvas.height, 18); c.fill();
+    }
+    if (border) { c.strokeStyle = border; c.lineWidth = 6; roundRect(c, 3, 3, canvas.width - 6, canvas.height - 6, 16); c.stroke(); }
+    c.font = `${weight} ${fontSize}px ${font}`;
+    c.fillStyle = color; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 6;
+    lines.forEach((l, i) => {
+      c.fillText(l, canvas.width / 2, pad + (i + 0.5) * fontSize * 1.25);
+    });
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+    const spr = new THREE.Sprite(mat);
+    const s = 0.01 * scale;
+    spr.scale.set(canvas.width * s, canvas.height * s, 1);
+    spr.userData.isLabel = true;
+    return spr;
+  }
+
+  function block(w, h, d, colorHex, opts = {}) {
+    const { opacity = 0.92, emissive = 0.35 } = opts;
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const mat = new THREE.MeshStandardMaterial({
+      color: colorHex, transparent: true, opacity,
+      emissive: colorHex, emissiveIntensity: emissive,
+      metalness: 0.2, roughness: 0.45,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 })
+    );
+    mesh.add(edges);
+    mesh.userData.baseEmissive = emissive;
+    mesh.userData.baseColor = colorHex;
+    return mesh;
+  }
+
+  function tube(p1, p2, radius, colorHex, opacity = 0.6) {
+    const path = new THREE.LineCurve3(p1.clone(), p2.clone());
+    const geo = new THREE.TubeGeometry(path, 1, radius, 6, false);
+    const mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity });
+    return new THREE.Mesh(geo, mat);
+  }
+
+  function line(p1, p2, colorHex, opacity = 0.5) {
+    const geo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+    const mat = new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity });
+    return new THREE.Line(geo, mat);
+  }
+
+  function softmax(arr, temp = 1) {
+    const t = Math.max(1e-6, temp);
+    const m = Math.max(...arr);
+    const ex = arr.map(v => Math.exp((v - m) / t));
+    const s = ex.reduce((a, b) => a + b, 0);
+    return ex.map(v => v / s);
+  }
+
+  function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+
+  function lerpHex(a, b, f) {
+    const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return ((ar + (br - ar) * f) << 16) | ((ag + (bg - ag) * f) << 8) | (ab + (bb - ab) * f) & 255;
+  }
+
+  function heat(t) {
+    t = Math.max(0, Math.min(1, t));
+    const stops = [
+      [0.05, 0x0a1a3a], [0.3, 0x1f6fff], [0.55, 0x21d4b4],
+      [0.78, 0xffd93b], [1.0, 0xff5252],
+    ];
+    for (let i = 1; i < stops.length; i++) {
+      if (t <= stops[i][0]) {
+        const [t0, c0] = stops[i - 1], [t1, c1] = stops[i];
+        const f = (t - t0) / (t1 - t0);
+        return lerpHex(c0, c1, f);
+      }
+    }
+    return stops[stops.length - 1][1];
+  }
+
+  function disposeGroup(group) {
+    group.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+      }
+    });
+  }
+
+  return { COLORS, mulberry32, textSprite, block, tube, line, softmax, dot, heat, lerpHex, disposeGroup };
+})();
+
+const C = U.COLORS;
+
+/* ============================================================
+   场景①：推理请求全流程（Client → Tokenize → Scheduler →
+   Prefill → KV Cache → Decode → Sampling → Response）
+   ============================================================ */
+const scenePipeline = (function () {
+  const BW = 3.4, BH = 0.85, BD = 1.5, ROW_Y1 = 2.7, ROW_Y2 = -2.7;
+
+  const STAGES = [
+    { x: -6.9, y: ROW_Y1, key: 'client',  label: '① 客户端请求', color: C.client, role: 'client' },
+    { x: -2.3, y: ROW_Y1, key: 'token',   label: '② Tokenize', color: C.token, role: 'token' },
+    { x: 2.3,  y: ROW_Y1, key: 'sched',   label: '③ 调度排队', color: C.attn, role: 'sched' },
+    { x: 6.9,  y: ROW_Y1, key: 'prefill', label: '④ Prefill 预填充', color: C.prefill, role: 'prefill' },
+    { x: 6.9,  y: ROW_Y2, key: 'kv',      label: '⑤ KV Cache 缓存', color: C.kv, role: 'kv' },
+    { x: 2.3,  y: ROW_Y2, key: 'decode',  label: '⑥ Decode 自回归', color: C.decode, role: 'decode' },
+    { x: -2.3, y: ROW_Y2, key: 'sample',  label: '⑦ Sampling 采样', color: C.sample, role: 'sample' },
+    { x: -6.9, y: ROW_Y2, key: 'resp',    label: '⑧ 流式返回', color: C.soft, role: 'resp' },
+  ];
+
+  const INFO = {
+    client: {
+      title: '① 客户端请求',
+      html: `<p>用户通过 OpenAI 兼容 API（<code>/v1/chat/completions</code>）把请求发到服务端，携带：</p>
+      <ul>
+        <li><b>prompt / messages</b>：要处理的文本</li>
+        <li><b>sampling 参数</b>：temperature、top-p、max_tokens 等</li>
+        <li><b>model</b>：指定用哪个模型</li>
+      </ul>
+      <p>这是整条业务链路的<strong>入口</strong>。</p>`
+    },
+    token: {
+      title: '② Tokenize 分词',
+      html: `<p>模型不认识"文字"，只认识 <b>token（词元）</b>。分词器把文本切成 token 序列：</p>
+      <span class="formula">"你好世界" → ["你好", "世界"]</span>
+      <p>常见分词器：<b>BPE</b>（GPT）、<b>SentencePiece</b>（LLaMA/Qwen）、<b>tiktoken</b> 等。</p>
+      <p>英文常 0.75 词 ≈ 1 token；中文约 1 字 ≈ 1~2 token。</p>`
+    },
+    sched: {
+      title: '③ 调度排队',
+      html: `<p>请求进入 <b>Scheduler（调度器）</b> 排队。调度器决定：</p>
+      <ul>
+        <li><b>何时执行</b>：Continuous Batching 动态合并一批</li>
+        <li><b>分配 KV 块</b>：预留 KV Cache 物理块（PagedAttention）</li>
+        <li><b>抢占策略</b>：长序列 vs 新请求谁先跑</li>
+        <li><b>前缀复用</b>：是否命中已有缓存前缀</li>
+      </ul>
+      <p>调度质量直接决定<b>吞吐</b>和<b>排队延迟</b>。</p>`
+    },
+    prefill: {
+      title: '④ Prefill 预填充',
+      html: `<p>模型把<b>整条 prompt 一次性并行</b>算一遍，得到：</p>
+      <ul>
+        <li>每个 token 的 <b>KV Cache</b>（注意力中间结果）</li>
+        <li>最后一个位置输出的 <b>第一个 token</b></li>
+      </ul>
+      <p>Prefill 是<b>计算密集</b>（矩阵乘法为主），一次处理整段，通常毫秒~秒级。</p>`
+    },
+    kv: {
+      title: '⑤ KV Cache 缓存',
+      html: `<p>KV Cache 保存每一层的 <b>Key/Value 张量</b>，避免 Decode 阶段重复计算。随 token 增长线性膨胀：</p>
+      <ul>
+        <li><b>显存大头</b>：长序列时占显存数十 GB</li>
+        <li><b>PagedAttention</b>：按 16×16 块管理，消除碎片</li>
+        <li><b>量化</b>：FP8/INT8 压缩，省显存换速度</li>
+      </ul>
+      <p>每次 Decode 只新增 <b>一行</b> KV，之前的全部复用。</p>`
+    },
+    decode: {
+      title: '⑥ Decode 自回归',
+      html: `<p>模型<b>逐 token</b> 生成：把当前序列（含刚生成的 token）再跑一遍，预测下一个。</p>
+      <span class="formula">x<sub>t+1</sub> = f(x<sub>1..t</sub>, KV<sub>1..t</sub>)</span>
+      <p>因为是<b>串行</b>的（第 t+1 个依赖第 t 个），这是整条链路里<b>最耗时</b>的环节——内存带宽密集。</p>
+      <p>vLLM 用 <b>Chunked Prefill</b> 把 Prefill 切块，与 Decode 混排，避免互卡。</p>`
+    },
+    sample: {
+      title: '⑦ Sampling 采样',
+      html: `<p>模型输出的是一个 <b>词表大小的概率分布</b>（Softmax 后）。采样策略决定选哪个：</p>
+      <ul>
+        <li><b>greedy</b>：直接取概率最高</li>
+        <li><b>temperature</b>：温度缩放分布</li>
+        <li><b>top-k / top-p</b>：截断候选词</li>
+      </ul>
+      <p>采样让生成有<b>多样性</b>，也是"创造"的来源。</p>`
+    },
+    resp: {
+      title: '⑧ 流式返回',
+      html: `<p>Decode 每出一个 token 就通过 <b>SSE（Server-Sent Events）</b> 推给客户端：</p>
+      <code>data: {"choices":[{"delta":{"content":"你"}}]}</code>
+      <p>用户 <b>逐字看到</b> 输出，首 token 延迟（TTFT）极小。</p>
+      <p>返回完，本次请求占用的 KV Cache 被释放回池子，供下一个请求复用。</p>`
+    },
+  };
+
+  function build(ctx) {
+    const group = new THREE.Group();
+    const clickTargets = [];
+    const flow = [];
+    const beams = [];
+    const dyn = new THREE.Group(); group.add(dyn); // 动态层：KV 块 / 生成文本
+
+    // 主方块
+    STAGES.forEach(s => {
+      const mesh = U.block(BW, BH, BD, s.color, { emissive: 0.3 });
+      mesh.position.set(s.x, s.y, 0);
+      const lab = U.textSprite(s.label, { fontSize: 38, scale: 0.85 });
+      lab.position.set(0, 0, BD / 2 + 0.05);
+      mesh.add(lab);
+      mesh.userData.info = INFO[s.role];
+      mesh.userData.clickable = true;
+      mesh.userData.role = s.role;
+      group.add(mesh);
+      clickTargets.push(mesh);
+      flow.push(mesh);
+    });
+
+    // 流水线光束（顺序连接）
+    for (let i = 0; i < flow.length - 1; i++) {
+      const p1 = new THREE.Vector3(flow[i].position.x, flow[i].position.y, BD / 2 + 0.3);
+      const p2 = new THREE.Vector3(flow[i + 1].position.x, flow[i + 1].position.y, BD / 2 + 0.3);
+      const b = U.tube(p1, p2, 0.045, 0x5b8cff, 0.4);
+      group.add(b); beams.push(b);
+    }
+
+    // 数据流光点（代表"当前正在处理的那个请求"）
+    const orb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.4, 24, 24),
+      new THREE.MeshBasicMaterial({ color: C.glow })
+    );
+    const orbGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.68, 24, 24),
+      new THREE.MeshBasicMaterial({ color: C.glow, transparent: true, opacity: 0.25 })
+    );
+    orb.add(orbGlow);
+    group.add(orb);
+
+    let idx = 0, segT = 0, playing = false, manualStep = false;
+    let cycle = 0;                 // 已处理的请求数
+    let kvCount = 4;               // KV 块数量
+    const maxCycles = 6;
+    const kvMeshes = [];
+    const respMeshes = [];
+
+    function nodeCenter(m) { return new THREE.Vector3(m.position.x, m.position.y, m.position.z + BD / 2 + 0.5); }
+    orb.position.copy(nodeCenter(flow[0]));
+
+    function highlight(mesh, on) {
+      mesh.material.emissiveIntensity = on ? 1.1 : mesh.userData.baseEmissive;
+      mesh.scale.setScalar(on ? 1.06 : 1.0);
+    }
+
+    // KV Cache 方块上叠加的小 KV 块（随请求增长）
+    function renderKV() {
+      while (kvMeshes.length) { const m = kvMeshes.pop(); U.disposeGroup(m); dyn.remove(m); }
+      const kvMesh = flow[4];
+      const kvCount = Math.min(8, 4 + cycle);
+      for (let i = 0; i < kvCount; i++) {
+        const s = new THREE.Mesh(
+          new THREE.BoxGeometry(0.5, 0.3, 0.5),
+          new THREE.MeshBasicMaterial({ color: C.kv, transparent: true, opacity: 0.85 })
+        );
+        const row = Math.floor(i / 4), col = i % 4;
+        s.position.set(kvMesh.position.x + (col - 1.5) * 0.6, kvMesh.position.y + 0.65 + row * 0.32, 0.35);
+        dyn.add(s); kvMeshes.push(s);
+      }
+      // 标签
+      const lab = U.textSprite('KV 块 ×' + kvCount, { fontSize: 26, color: '#b6f5dd', scale: 0.62 });
+      lab.position.set(kvMesh.position.x, kvMesh.position.y + 1.15, 0.4);
+      dyn.add(lab); kvMeshes.push(lab);
+    }
+
+    // 流式返回文本（每处理一个请求追加一行）
+    function renderResp() {
+      while (respMeshes.length) { const m = respMeshes.pop(); U.disposeGroup(m); dyn.remove(m); }
+      const sampleTexts = [
+        '你 好 ， 世 界 ！',
+        '请 问 天 气 如 何 ？',
+        '给 我 讲 个 故 事 。',
+        '写 一 首 关 于 月 亮 的 诗 。',
+        '帮 我 总 结 这 段 文 章 。',
+        '翻 译 成 英 文 。',
+      ];
+      const resp = flow[7];
+      const lines = [];
+      for (let i = 0; i < cycle; i++) lines.push('▸ ' + sampleTexts[i % sampleTexts.length]);
+      if (!lines.length) return;
+      const lab = U.textSprite(lines.join('\n'), { fontSize: 22, color: '#ffd6c2', scale: 0.6 });
+      lab.position.set(resp.position.x + 2.6, resp.position.y + 1.1, 0.4);
+      dyn.add(lab); respMeshes.push(lab);
+    }
+
+    renderKV(); renderResp();
+
+    function update(dt, t) {
+      orbGlow.material.opacity = 0.18 + 0.12 * Math.sin(t * 4);
+      beams.forEach((b, i) => { b.material.opacity = 0.25 + 0.2 * Math.sin(t * 2 + i); });
+      if (!playing && !manualStep) return;
+      const speed = 0.9;
+      segT += dt * speed * (manualStep ? 4 : 1);
+      const cur = flow[idx], nxt = flow[(idx + 1) % flow.length];
+      const a = nodeCenter(cur), b = nodeCenter(nxt);
+      orb.position.lerpVectors(a, b, Math.min(1, segT));
+      highlight(cur, true);
+      if (segT >= 1) {
+        highlight(cur, false);
+        segT = 0; idx = (idx + 1) % flow.length;
+        if (manualStep) manualStep = false;
+        // 一圈走完：一个请求处理完成
+        if (idx === 0) { cycle++; renderKV(); renderResp(); }
+      }
+    }
+
+    return {
+      group,
+      clickTargets,
+      camera: { position: [0, 5.5, 22], target: [0, 0, 0] },
+      defaultInfo: {
+        title: '推理请求全流程',
+        html: `<p>这是 LLM 推理服务处理一个请求的<b>完整业务链路</b>：8 个环节首尾相接，数据自上而下、自左而右流动。</p>
+        <p>点击 <b>▶ 播放</b>，光点代表<b>当前正在处理的请求</b>，沿流水线走完一圈 = 处理完一个请求。</p>
+        <h3>两个阶段</h3>
+        <ul>
+          <li><b>上排（1→4）</b>：请求接入与 <b>Prefill</b>（一次算完 prompt）</li>
+          <li><b>下排（5→8）</b>：KV 缓存复用与 <b>Decode</b>（逐词生成）→ 采样 → 流式返回</li>
+        </ul>
+        <h3>颜色图例</h3>
+        <p><span class="tag" style="background:#9fb0e033;color:#dbe6ff">客户端</span>
+        <span class="tag" style="background:#6c8cff33;color:#c4d4ff">分词</span>
+        <span class="tag" style="background:#4f9dff33;color:#b9dbff">调度</span>
+        <span class="tag" style="background:#4f9dff33;color:#b9dbff">Prefill</span>
+        <span class="tag" style="background:#38d39f33;color:#aef0d8">KV Cache</span>
+        <span class="tag" style="background:#ff9f4333;color:#ffd6a8">Decode</span>
+        <span class="tag" style="background:#ff6b9d33;color:#ffc2d6">采样/返回</span></p>`
+      },
+      onPlay(p) { playing = p; },
+      onStep() { manualStep = true; },
+      onReset() { idx = 0; segT = 0; cycle = 0; flow.forEach(m => highlight(m, false)); orb.position.copy(nodeCenter(flow[0])); renderKV(); renderResp(); },
+      onPick(mesh) { return mesh.userData.info || null; },
+      update,
+      dispose() { U.disposeGroup(group); },
+    };
+  }
+  return { build };
+})();
+
+/* ============================================================
+   场景②：Transformer 内部处理
+   （词嵌入 → 多头注意力矩阵 → Softmax 概率分布 → 采样 → 自回归）
+   ============================================================ */
+const sceneTransformer = (function () {
+  const DMODEL = 16, HEADS = 4, HD = DMODEL / HEADS;
+
+  function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function embedOf(token, pos) {
+    const r = U.mulberry32(hashStr(token.toLowerCase()) + 13);
+    const v = []; for (let i = 0; i < DMODEL; i++) v.push((r() * 2 - 1) + 0.25 * Math.sin(pos / 3 + i)); return v;
+  }
+  function randMat(seed, rows, cols) {
+    const r = U.mulberry32(seed); const m = [];
+    for (let i = 0; i < rows; i++) { const row = []; for (let j = 0; j < cols; j++) row.push((r() * 2 - 1) * 0.6); m.push(row); }
+    return m;
+  }
+  function vecMat(v, m) {
+    const out = new Array(m[0].length).fill(0);
+    for (let i = 0; i < v.length; i++) for (let j = 0; j < out.length; j++) out[j] += v[i] * m[i][j];
+    return out;
+  }
+  const Wq = [], Wk = [], Wv = [];
+  for (let h = 0; h < HEADS; h++) { Wq.push(randMat(100 + h, DMODEL, HD)); Wk.push(randMat(200 + h, DMODEL, HD)); Wv.push(randMat(300 + h, DMODEL, HD)); }
+
+  function computeAttention(tokens, head) {
+    const embs = tokens.map((t, i) => embedOf(t, i));
+    const Q = embs.map(e => vecMat(e, Wq[head]));
+    const K = embs.map(e => vecMat(e, Wk[head]));
+    const N = tokens.length;
+    const W = [];
+    for (let i = 0; i < N; i++) {
+      const scores = [];
+      for (let j = 0; j < N; j++) scores.push(U.dot(Q[i], K[j]) / Math.sqrt(HD));
+      W.push(U.softmax(scores, 1));
+    }
+    return W;
+  }
+
+  // ---- n-gram 语言模型（同参考 demo 场景④）----
+  const CORPUS = `
+  the cat sat on the mat . the cat ate the fish . the dog sat on the rug .
+  the dog ran to the park . the cat ran to the park . a happy cat plays with a ball .
+  a happy dog plays with a bone . the king lives in a big castle . the queen lives in a big castle .
+  the king loves the queen . the queen loves the king . the sun is bright and warm .
+  the moon is bright at night . i like to read a good book . i like to drink a cup of tea .
+  she likes to read a good book . he likes to play in the park . the robot can read and write .
+  the robot can learn from data . a model can learn from data . a model can predict the next word .
+  the cat is small and soft . the dog is big and strong . birds can fly in the sky .
+  fish can swim in the sea . we love to learn new things . they love to play new games .
+  the child reads a good book . the child plays with the cat . the teacher reads to the child .
+  `;
+  function tokenize(s) { return s.toLowerCase().replace(/[^a-z.<> ]/g, ' ').split(/\s+/).filter(Boolean); }
+  const toks = tokenize(CORPUS);
+  const uni = new Map(), bi = new Map(), tri = new Map();
+  function inc(map, k, w) { if (!map.has(k)) map.set(k, new Map()); const m = map.get(k); m.set(w, (m.get(w) || 0) + 1); }
+  toks.forEach((w, i) => {
+    uni.set(w, (uni.get(w) || 0) + 1);
+    if (i >= 1) inc(bi, toks[i - 1], w);
+    if (i >= 2) inc(tri, toks[i - 2] + '|' + toks[i - 1], w);
+  });
+  const vocab = [...uni.keys()];
+  const uniTotal = toks.length;
+
+  function predict(context, temp) {
+    const n = context.length;
+    const w1 = context[n - 2], w2 = context[n - 1];
+    const score = new Map();
+    const add = (map, key, weight) => {
+      if (!map || !map.has(key)) return; const m = map.get(key); let tot = 0; m.forEach(v => tot += v);
+      m.forEach((v, w) => score.set(w, (score.get(w) || 0) + weight * v / tot));
+    };
+    add(tri, w1 + '|' + w2, 3.0);
+    add(bi, w2, 1.2);
+    uni.forEach((v, w) => score.set(w, (score.get(w) || 0) + 0.05 * v / uniTotal));
+    const words = [...score.keys()];
+    const logits = words.map(w => Math.log(score.get(w) + 1e-9));
+    const probs = U.softmax(logits, temp);
+    return words.map((w, i) => [w, probs[i]]).sort((a, b) => b[1] - a[1]);
+  }
+  function sample(order) {
+    const r = Math.random(); let acc = 0;
+    for (const [w, p] of order) { acc += p; if (r <= acc) return w; }
+    return order[0][0];
+  }
+
+  function build(ctx) {
+    const group = new THREE.Group();
+    const ctxGroup = new THREE.Group(); group.add(ctxGroup);   // 顶部上下文词块
+    const attnGroup = new THREE.Group(); group.add(attnGroup); // 中部注意力
+    const barGroup = new THREE.Group(); group.add(barGroup);   // 底部概率条
+    let context = ['the', 'cat'];
+    let head = 0, query = 1, temp = 0.8, playing = false, autoT = 0, panel = null;
+    const K = 8;
+    let lastOrder = null;
+
+    // 语言模型盒子（中部）
+    const modelBox = U.block(3.4, 2.0, 1.6, 0x2c4a9e, { opacity: 0.4, emissive: 0.25 });
+    modelBox.position.set(0, 0.6, -3.0);
+    const ml = U.textSprite('Transformer 语言模型\n嵌入 → 注意力 → FFN → Softmax', { fontSize: 26, scale: 0.85 });
+    ml.position.set(0, 0.2, 0.95); modelBox.add(ml);
+    group.add(modelBox);
+
+    // 区域标题
+    const inLab = U.textSprite('① 输入上文（自回归上下文窗口）', { fontSize: 28, color: '#bcd0ff', scale: 0.82 });
+    inLab.position.set(0, 5.5, 0); group.add(inLab);
+    const attLab = U.textSprite('② 多头注意力矩阵（行=Query，列=Key，越亮关注越高）', { fontSize: 24, color: '#c4d4ff', scale: 0.75 });
+    attLab.position.set(0, 1.7, -1.6); group.add(attLab);
+    const outLab = U.textSprite('③ 下一个词的概率分布 → ④ 采样 → 接回上文', { fontSize: 26, color: '#ffd6a8', scale: 0.8 });
+    outLab.position.set(0, -3.3, 0); group.add(outLab);
+
+    // 采样飞行光点
+    const flyer = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), new THREE.MeshBasicMaterial({ color: C.glow }));
+    flyer.visible = false; group.add(flyer);
+    let flyT = 1, flyFrom = new THREE.Vector3(), flyTo = new THREE.Vector3(), flyWord = '';
+
+    // ---- 顶部上下文 ----
+    function renderContext() {
+      while (ctxGroup.children.length) { const c = ctxGroup.children.pop(); U.disposeGroup(c); ctxGroup.remove(c); }
+      const show = context.slice(-8);
+      const sp = 1.7, x0 = -(show.length - 1) * sp / 2;
+      show.forEach((w, i) => {
+        const newest = i === show.length - 1;
+        const b = U.block(1.5, 0.8, 0.5, newest ? C.glow : C.token, { emissive: newest ? 0.8 : 0.3 });
+        b.position.set(x0 + i * sp, 4.6, 0);
+        const l = U.textSprite(w, { fontSize: 36, scale: 0.7, color: newest ? '#1a1a1a' : '#fff' });
+        l.position.set(0, 0, 0.3); b.add(l);
+        b.userData.token = w; b.userData.clickable = true; b.userData.qi = context.slice(-8).indexOf(w);
+        ctxGroup.add(b);
+      });
+    }
+
+    // ---- 中部注意力（Q/K 塔 + 热力矩阵）----
+    function rebuildAttention() {
+      while (attnGroup.children.length) { const c = attnGroup.children.pop(); U.disposeGroup(c); attnGroup.remove(c); }
+      const n = Math.min(6, context.length);
+      const attTokens = context.slice(-n);
+      if (attTokens.length < 2) return;
+      query = Math.min(query, n - 1);
+      const weights = computeAttention(attTokens, head);
+
+      const ROW_GAP = 1.05, LX = -4.6, RX = 4.6;
+      function yOf(i) { return 0.9 - (i - (n - 1) * 0.5) * ROW_GAP; }
+
+      // 左 Q / 右 K
+      attTokens.forEach((w, i) => {
+        const l = U.block(1.8, 0.72, 0.5, C.q, { emissive: 0.28 });
+        l.position.set(LX, yOf(i), 0.2);
+        const ll = U.textSprite(w, { fontSize: 34, scale: 0.66 }); ll.position.set(0, 0, 0.3); l.add(ll);
+        l.userData.clickable = false; l.userData.qi = i;
+        attnGroup.add(l);
+
+        const r = U.block(1.8, 0.72, 0.5, C.k, { emissive: 0.28 });
+        r.position.set(RX, yOf(i), 0.2);
+        const rl = U.textSprite(w, { fontSize: 34, scale: 0.66 }); rl.position.set(0, 0, 0.3); r.add(rl);
+        attnGroup.add(r);
+      });
+
+      // 连线
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const p1 = new THREE.Vector3(LX + 0.95, yOf(i), 0.2);
+          const p2 = new THREE.Vector3(RX - 0.95, yOf(j), 0.2);
+          const w = weights[i][j];
+          const t = U.tube(p1, p2, 0.015 + w * 0.13, C.glow, i === query ? 0.2 + w * 0.6 : 0.0);
+          attnGroup.add(t);
+        }
+      }
+
+      // 热力矩阵（俯视平铺）
+      const cs = 0.5, gx0 = -(n - 1) * cs / 2, gy0 = -1.1;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const cell = new THREE.Mesh(new THREE.BoxGeometry(cs * 0.92, 0.1, cs * 0.92),
+            new THREE.MeshBasicMaterial({ color: U.heat(weights[i][j]) }));
+          cell.position.set(gx0 + j * cs, gy0, -3.8 - i * cs);
+          cell.userData.clickable = false;
+          attnGroup.add(cell);
+        }
+        const rlab = U.textSprite(attTokens[i], { fontSize: 20, color: '#9fb3d8', scale: 0.45 });
+        rlab.position.set(gx0 - cs * 0.7, gy0, -3.8 - i * cs); attnGroup.add(rlab);
+        const clab = U.textSprite(attTokens[i], { fontSize: 20, color: '#9fb3d8', scale: 0.45 });
+        clab.position.set(gx0 + i * cs, gy0, -3.8 + cs * 0.7); attnGroup.add(clab);
+      }
+    }
+
+    // ---- 底部概率条 ----
+    function renderBars(order) {
+      while (barGroup.children.length) { const c = barGroup.children.pop(); U.disposeGroup(c); barGroup.remove(c); }
+      const top = order.slice(0, K);
+      const sp = 1.9, x0 = -(top.length - 1) * sp / 2;
+      const maxP = top[0][1] || 1;
+      top.forEach(([w, p], i) => {
+        const h = Math.max(0.1, (p / maxP) * 3.0);
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(1.2, h, 1.2),
+          new THREE.MeshStandardMaterial({ color: U.heat(p / maxP), emissive: U.heat(p / maxP), emissiveIntensity: 0.4 }));
+        bar.position.set(x0 + i * sp, -2.2 + h / 2, 0.5);
+        bar.userData.word = w; bar.userData.x = x0 + i * sp;
+        const wl = U.textSprite(w, { fontSize: 30, scale: 0.65 }); wl.position.set(0, h / 2 + 0.4, 0); bar.add(wl);
+        const pl = U.textSprite((p * 100).toFixed(1) + '%', { fontSize: 22, color: '#ffe9b0', scale: 0.5 });
+        pl.position.set(0, -h / 2 - 0.35, 0); bar.add(pl);
+        barGroup.add(bar);
+      });
+      lastOrder = top;
+    }
+
+    function previewDistribution() {
+      renderBars(predict(context, temp));
+      updatePanel(lastOrder);
+    }
+
+    function stepGenerate() {
+      const order = predict(context, temp);
+      renderBars(order);
+      const w = sample(order);
+      const bar = barGroup.children.find(b => b.userData && b.userData.word === w);
+      flyFrom.set(bar ? bar.userData.x : 0, -0.6, 0.5);
+      flyTo.set(0, 4.6, 0); flyWord = w; flyT = 0; flyer.visible = true; flyer.position.copy(flyFrom);
+      flyer._pending = w;
+      updatePanel(order, w);
+    }
+
+    function commitWord(w) {
+      context.push(w);
+      if (context.length > 40) context.shift();
+      renderContext(); rebuildAttention();
+      updatePanel(lastOrder, w);
+    }
+
+    function reset(toPrompt) {
+      context = toPrompt && toPrompt.length ? toPrompt.slice() : ['the', 'cat'];
+      renderContext(); rebuildAttention(); previewDistribution();
+    }
+
+    function updatePanel(order, chosen) {
+      if (!panel) return;
+      const gen = panel.querySelector('#gen-text');
+      if (gen) gen.textContent = context.join(' ');
+      const list = panel.querySelector('#pred-list');
+      if (list && order) {
+        list.innerHTML = order.slice(0, 6).map(([w, p]) =>
+          `<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;${w === chosen ? 'color:#ffd93b;font-weight:700' : 'color:#cdd6ea'}">
+            <span>${w === chosen ? '➜ ' : ''}${w}</span><span>${(p * 100).toFixed(1)}%</span></div>`).join('');
+      }
+    }
+
+    renderContext(); rebuildAttention(); previewDistribution();
+
+    return {
+      group,
+      clickTargets: [],
+      camera: { position: [0, 2.2, 16], target: [0, 0.5, -1] },
+      defaultInfo: {
+        title: 'Transformer 内部处理',
+        html: `<p>一个请求被 Tokenize 之后，真正的"业务处理"发生在 Transformer 内部。这里展示<b>自回归生成</b>的每一步：</p>
+        <h3>三步循环</h3>
+        <ul>
+          <li><b>①</b> 把当前上文（顶部词块）送进模型</li>
+          <li><b>②</b> 多头注意力算出词与词的<b>关注关系</b>（中间热力矩阵），再经 FFN 加工</li>
+          <li><b>③</b> 对词表打分 → Softmax 成<b>概率分布</b>（下方彩色柱子）</li>
+          <li><b>④</b> 按概率<b>采样</b>一个词 → 接回上文 → 回到 ①</li>
+        </ul>
+        <h3>头部 (Head)</h3>
+        <p>多头让模型<b>并行学习多种关注模式</b>：有的盯语法、有的盯指代、有的盯邻近词。切换 Head 看矩阵差异。</p>
+        <h3>温度 (Temperature)</h3>
+        <p>温度低 → 永远选最高概率，稳定但单调；温度高 → 分布变平，更随机有创意。</p>
+        <p>点击顶部词块可切换 Query（当前发问的词），高亮它的注意力行。</p>`
+      },
+      controlsHTML: `<div class="panel-card">
+        <h3>注意力头 (Head)</h3>
+        <div class="chip-row" id="head-row">
+          <span class="chip active" data-h="0">Head 1</span>
+          <span class="chip" data-h="1">Head 2</span>
+          <span class="chip" data-h="2">Head 3</span>
+          <span class="chip" data-h="3">Head 4</span>
+        </div>
+        <h3 style="margin-top:12px">起始提示词 (Prompt)</h3>
+        <input id="tr-prompt" type="text" value="the cat" />
+        <div class="chip-row">
+          <span class="chip" data-s="the king">the king</span>
+          <span class="chip" data-s="a happy dog">a happy dog</span>
+          <span class="chip" data-s="the robot can">the robot can</span>
+          <span class="chip" data-s="i like to">i like to</span>
+        </div>
+        <label>温度 Temperature：<b id="temp-val">0.8</b></label>
+        <input id="temp" type="range" min="0.1" max="1.6" step="0.1" value="0.8" style="width:100%" />
+        <button class="bigbtn" id="gen-step">生成下一个词 ▶</button>
+        <button class="bigbtn" id="gen-auto" style="margin-top:8px;background:linear-gradient(180deg,#1d6b4f,#13402f);border-color:#38d39f">自动续写一句 ⟳</button>
+        <h3 style="margin-top:14px">已生成</h3>
+        <div id="gen-text" style="font-size:13px;line-height:1.6;color:#ffe9b0;min-height:38px"></div>
+        <h3 style="margin-top:8px">下一个词候选</h3>
+        <div id="pred-list"></div>
+      </div>`,
+      bindControls(root) {
+        panel = root;
+        const prompt = root.querySelector('#tr-prompt');
+        const applyPrompt = () => reset(tokenize(prompt.value));
+        prompt.addEventListener('change', applyPrompt);
+        root.querySelectorAll('.chip[data-s]').forEach(ch => ch.addEventListener('click', () => {
+          prompt.value = ch.dataset.s; applyPrompt();
+        }));
+        root.querySelectorAll('#head-row .chip').forEach(ch => ch.addEventListener('click', () => {
+          root.querySelectorAll('#head-row .chip').forEach(x => x.classList.remove('active'));
+          ch.classList.add('active'); head = +ch.dataset.h; rebuildAttention();
+        }));
+        const tslider = root.querySelector('#temp'), tval = root.querySelector('#temp-val');
+        tslider.addEventListener('input', () => { temp = +tslider.value; tval.textContent = temp.toFixed(1); previewDistribution(); });
+        root.querySelector('#gen-step').addEventListener('click', () => stepGenerate());
+        root.querySelector('#gen-auto').addEventListener('click', () => { playing = true; autoT = 1; ctx.setPlayButton(true); });
+        updatePanel(lastOrder);
+      },
+      onPick(mesh) {
+        if (mesh.userData && mesh.userData.token) {
+          const qi = context.slice(-6).indexOf(mesh.userData.token);
+          if (qi >= 0) { query = qi; rebuildAttention(); }
+        }
+        return null;
+      },
+      onPlay(p) { playing = p; if (p) autoT = 1; },
+      onStep() { stepGenerate(); },
+      onReset() { playing = false; reset(context.slice(0, 2)); },
+      update(dt, t) {
+        modelBox.material.emissiveIntensity = 0.2 + 0.1 * Math.sin(t * 2);
+        if (flyer.visible) {
+          flyT += dt * 2.2;
+          const f = Math.min(1, flyT);
+          flyer.position.lerpVectors(flyFrom, flyTo, f);
+          flyer.position.y += Math.sin(f * Math.PI) * 1.2;
+          if (f >= 1) { flyer.visible = false; if (flyer._pending) { commitWord(flyer._pending); flyer._pending = null; } }
+        }
+        if (playing) {
+          autoT += dt;
+          if (autoT > 1.3 && !flyer.visible) {
+            autoT = 0;
+            if (context.length > 0 && context[context.length - 1] === '.') { playing = false; ctx.setPlayButton(false); }
+            else if (context.length > 30) { playing = false; ctx.setPlayButton(false); }
+            else stepGenerate();
+          }
+        }
+      },
+      dispose() { U.disposeGroup(group); },
+    };
+  }
+  return { build };
+})();
+
+/* ============================================================
+   场景③：P/D 分离业务处理
+   （Client → Router → Prefill Pod → KV 传输 → Decode Pod → 流式返回）
+   ============================================================ */
+const scenePD = (function () {
+  const BENDERS = {
+    shfs:     { color: 0x38d39f, label: 'SHFS · GPU 直传' },
+    nixl:     { color: 0x4f9dff, label: 'NIXL · NVLink+IB' },
+    mooncake: { color: 0xff9f43, label: 'Mooncake · RDMA' },
+  };
+
+  const INFO = {
+    client: {
+      title: '客户端',
+      html: `<p>用户发起 <code>/v1/chat/completions</code> 请求，等待<b>流式（SSE）</b>响应。</p>`
+    },
+    router: {
+      title: 'Router / Gateway',
+      html: `<p>路由层根据请求决定走哪条 P/D 链路：</p>
+      <ul>
+        <li><b>前缀缓存感知</b>：命中已有 Prefill 则直接复用</li>
+        <li><b>负载均衡</b>：把请求分给空闲的 Prefill Pod</li>
+        <li><b>角色标记</b>：区分 prefill / decode 两个角色</li>
+      </ul>`
+    },
+    prefill: {
+      title: 'Prefill Pod（计算密集）',
+      html: `<p>一次性并行处理整条 prompt：</p>
+      <ul>
+        <li>计算所有层 KV Cache</li>
+        <li>产出<b>第一个 token</b>，立刻返回客户端（TTFT 很低）</li>
+      </ul>
+      <p>它是<b>计算密集</b>（算得快），但占显存时间短。</p>`
+    },
+    decode: {
+      title: 'Decode Pod（访存密集）',
+      html: `<p>接收传输来的 KV Cache，<b>逐 token 自回归</b>生成后续内容：</p>
+      <ul>
+        <li>每步只新增一行 KV，反复读全部历史</li>
+        <li>访存密集 → 适合与 Prefill <b>异构部署</b></li>
+      </ul>
+      <p>它是<b>访存密集</b>（跑得慢），长时间占显存。</p>`
+    },
+  };
+
+  function build(ctx) {
+    const group = new THREE.Group();
+    const clickTargets = [];
+    let backend = 'nixl';
+    let playing = false, phaseT = 0, phaseIdx = 0, auto = false, panel = null;
+    const movers = []; // 飞行物体
+    let kvBlocks = 0, tokensOut = 0;
+
+    const CLIENT = new THREE.Vector3(-8.5, 0, 0);
+    const ROUTER = new THREE.Vector3(-4.5, 0, 0);
+    const PREFILL = new THREE.Vector3(2.5, 3.4, 0);
+    const DECODE = new THREE.Vector3(2.5, -3.4, 0);
+
+    // ---- 主方块 ----
+    function makeBlock(pos, w, h, d, color, label, role) {
+      const m = U.block(w, h, d, color, { emissive: 0.3 });
+      m.position.copy(pos);
+      const l = U.textSprite(label, { fontSize: 34, scale: 0.8 });
+      l.position.set(0, 0, d / 2 + 0.05); m.add(l);
+      m.userData.info = INFO[role]; m.userData.clickable = true;
+      group.add(m); clickTargets.push(m);
+      return m;
+    }
+    makeBlock(CLIENT, 2.2, 1.4, 1.4, C.client, '客户端\nClient', 'client');
+    makeBlock(ROUTER, 2.2, 1.4, 1.4, C.router, 'Router\n路由层', 'router');
+    makeBlock(PREFILL, 3.4, 1.7, 1.7, C.prefill, 'Prefill Pod\n计算 KV · 首个 token', 'prefill');
+    makeBlock(DECODE, 3.4, 1.7, 1.7, C.decode, 'Decode Pod\n逐词自回归', 'decode');
+
+    // 请求路径：Client → Router → Prefill
+    const req1 = U.tube(CLIENT.clone().add(new THREE.Vector3(1.15, 0, 0)), ROUTER.clone().add(new THREE.Vector3(-1.15, 0, 0)), 0.05, 0x5b8cff, 0.5);
+    const req2 = U.tube(ROUTER.clone().add(new THREE.Vector3(1.15, 0, 0)), PREFILL.clone().add(new THREE.Vector3(-1.7, 0, 0)), 0.05, 0x5b8cff, 0.5);
+    group.add(req1); group.add(req2);
+
+    // KV 传输光束（Prefill → Decode，颜色随后端）
+    const kvBeamGroup = new THREE.Group(); group.add(kvBeamGroup);
+    // 流式返回光束（Decode → Client）
+    const respBeamGroup = new THREE.Group(); group.add(respBeamGroup);
+    const respBeam = U.tube(DECODE.clone().add(new THREE.Vector3(1.7, 0, 0)), CLIENT.clone().add(new THREE.Vector3(-1.15, 0, 0)), 0.04, 0xffd93b, 0.35);
+    respBeamGroup.add(respBeam);
+
+    function rebuildKvBeam() {
+      while (kvBeamGroup.children.length) { const c = kvBeamGroup.children.pop(); U.disposeGroup(c); kvBeamGroup.remove(c); }
+      const col = BENDERS[backend].color;
+      const b = U.tube(PREFILL.clone().add(new THREE.Vector3(0, -0.9, 0.9)), DECODE.clone().add(new THREE.Vector3(0, 0.9, 0.9)), 0.09, col, 0.55);
+      kvBeamGroup.add(b);
+      const lab = U.textSprite(BENDERS[backend].label, { fontSize: 26, color: '#bcd0ff', scale: 0.6 });
+      lab.position.set(2.5, 0.6, 2.2); kvBeamGroup.add(lab);
+    }
+    rebuildKvBeam();
+
+    // 统计标签
+    const statLab = U.textSprite('', { fontSize: 24, color: '#ffe9b0', scale: 0.65 });
+    statLab.position.set(-2.5, 5.2, 0); group.add(statLab);
+
+    function updateStat() {
+      statLab.textContent = `KV 块已传输：${kvBlocks}  ·  已流式返回：${tokensOut} token`;
+      statLab.material.map.texture.needsUpdate = true;
+      if (panel) {
+        const kv = panel.querySelector('#kv-stat'), to = panel.querySelector('#tok-stat');
+        if (kv) kv.textContent = String(kvBlocks);
+        if (to) to.textContent = String(tokensOut);
+      }
+    }
+    updateStat();
+
+    // ---- 飞行物体 ----
+    function addMover(from, to, color, size, label) {
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(size, 16, 16),
+        new THREE.MeshBasicMaterial({ color })
+      );
+      if (label) {
+        const l = U.textSprite(label, { fontSize: 24, scale: 0.5 });
+        l.position.set(0, 0.5, 0); mesh.add(l);
+      }
+      mesh.userData = { from: from.clone(), to: to.clone(), t: 0 };
+      group.add(mesh); movers.push(mesh);
+      return mesh;
+    }
+
+    // ---- 业务流程阶段 ----
+    function phaseStep() {
+      phaseIdx++;
+      switch (phaseIdx) {
+        case 1: // Client → Router
+          addMover(CLIENT, ROUTER, C.glow, 0.22, '请求');
+          break;
+        case 2: // Router → Prefill
+          addMover(ROUTER, PREFILL, C.glow, 0.22, '请求');
+          break;
+        case 3: // Prefill 返回首个 token
+          addMover(PREFILL, CLIENT, C.glow, 0.22, 'token₁');
+          tokensOut++;
+          updateStat();
+          break;
+        case 4: // 传输 KV 块（多个）
+          for (let i = 0; i < 4; i++) {
+            const m = addMover(
+              PREFILL.clone().add(new THREE.Vector3(0, -0.9 - i * 0.25, 0.9)),
+              DECODE.clone().add(new THREE.Vector3(0, 0.9 + i * 0.25, 0.9)),
+              BENDERS[backend].color, 0.18
+            );
+            m.userData.delay = i * 0.25;
+          }
+          break;
+        case 5: // Decode 逐个返回后续 token
+          for (let i = 0; i < 5; i++) {
+            const m = addMover(
+              DECODE.clone().add(new THREE.Vector3(1.7 + i * 0.2, 0, 0)),
+              CLIENT.clone().add(new THREE.Vector3(-1.15, 0, 0)),
+              C.glow, 0.16, i === 0 ? 'token₂' : ''
+            );
+            m.userData.delay = i * 0.4;
+          }
+          break;
+        default:
+          phaseIdx = 0;
+          kvBlocks += 4; tokensOut += 5; updateStat();
+          // 自动模式下继续；手动模式下等待下一次 step
+          if (auto && playing) phaseT = 2; // 稍后自动进入下一轮
+          return;
+      }
+      if (playing && auto) phaseT = 0;
+    }
+
+    function resetAll() {
+      phaseIdx = 0; kvBlocks = 0; tokensOut = 0;
+      while (movers.length) { const m = movers.pop(); U.disposeGroup(m); group.remove(m); }
+      updateStat();
+    }
+
+    function update(dt, t) {
+      // 移动飞行物体
+      for (let i = movers.length - 1; i >= 0; i--) {
+        const m = movers[i];
+        const d = m.userData;
+        if (d.delay > 0) { d.delay -= dt; if (d.delay > 0) continue; }
+        d.t += dt * 0.55;
+        const f = Math.min(1, d.t);
+        m.position.lerpVectors(d.from, d.to, f);
+        m.position.y += Math.sin(f * Math.PI) * 0.6;
+        if (f >= 1) { U.disposeGroup(m); group.remove(m); movers.splice(i, 1); }
+      }
+      // 自动推进
+      if (playing && auto) {
+        phaseT += dt;
+        if (phaseT > 1.4 && !movers.length) { phaseT = 0; phaseStep(); }
+      }
+    }
+
+    return {
+      group,
+      clickTargets,
+      camera: { position: [0, 6.5, 20], target: [0, 0, 0] },
+      defaultInfo: {
+        title: 'P/D 分离业务处理',
+        html: `<p><b>P/D 分离（Prefill / Decode Disaggregation）</b>把请求处理拆到两类不同的 Pod：</p>
+        <ul>
+          <li><b>Prefill Pod</b>：计算密集，处理完整 prompt，产出 KV Cache + 首个 token</li>
+          <li><b>Decode Pod</b>：访存密集，逐 token 生成，长时间占显存</li>
+        </ul>
+        <p>中间的 <b>KV 传输</b>是核心：把 KV Cache 从 Prefill 搬到 Decode，后续 decode 直接复用。</p>
+        <h3>传输后端</h3>
+        <p>左侧面板可切换：<b>SHFS</b>（GPU 直传）、<b>NIXL</b>（NVLink + InfiniBand）、<b>Mooncake</b>（RDMA）。</p>
+        <h3>业务流程</h3>
+        <p>点击 <b>▶ 播放</b>：请求 → Router → Prefill（返回 token₁）→ KV 传输 → Decode（逐词返回）。</p>`
+      },
+      controlsHTML: `<div class="panel-card">
+        <h3>KV 传输后端</h3>
+        <div class="chip-row" id="bend-row">
+          <span class="chip" data-b="shfs">SHFS</span>
+          <span class="chip active" data-b="nixl">NIXL</span>
+          <span class="chip" data-b="mooncake">Mooncake</span>
+        </div>
+        <div class="stat-line">已传输 KV 块：<b id="kv-stat">0</b></div>
+        <div class="stat-line">已流式返回：<b id="tok-stat">0</b> token</div>
+        <button class="bigbtn" id="pd-step">▶ 执行一个环节</button>
+      </div>`,
+      bindControls(root) {
+        panel = root;
+        root.querySelectorAll('#bend-row .chip').forEach(ch => ch.addEventListener('click', () => {
+          root.querySelectorAll('#bend-row .chip').forEach(x => x.classList.remove('active'));
+          ch.classList.add('active'); backend = ch.dataset.b; rebuildKvBeam();
+        }));
+        root.querySelector('#pd-step').addEventListener('click', () => { auto = false; phaseStep(); });
+      },
+      onPlay(p) {
+        playing = p;
+        if (p) { auto = true; phaseT = 2; }
+        else auto = false;
+      },
+      onStep() { auto = false; phaseStep(); },
+      onReset() { playing = false; auto = false; resetAll(); },
+      onPick(mesh) { return mesh.userData.info || null; },
+      update,
+      dispose() { U.disposeGroup(group); },
+    };
+  }
+  return { build };
+})();
+
+/* ============================================================
+   主程序：渲染、场景切换、交互、播放控制
+   ============================================================ */
+(function () {
+  if (typeof THREE === 'undefined') { document.getElementById('loading').textContent = '加载 Three.js 失败。'; return; }
+
+  const canvas = document.getElementById('webgl');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0e1a, 0.012);
+
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 1000);
+  camera.position.set(0, 6, 22);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.target.set(0, 4, 0);
+
+  scene.add(new THREE.AmbientLight(0x8090c0, 0.7));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9); dir.position.set(8, 14, 10); scene.add(dir);
+  const p1 = new THREE.PointLight(0x5b8cff, 0.6, 80); p1.position.set(-10, 6, 8); scene.add(p1);
+  const p2 = new THREE.PointLight(0xff7bac, 0.5, 80); p2.position.set(10, 4, 8); scene.add(p2);
+
+  (function stars() {
+    const g = new THREE.BufferGeometry(); const n = 700, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { pos[i*3] = (Math.random() - 0.5) * 200; pos[i*3+1] = (Math.random() - 0.5) * 140; pos[i*3+2] = (Math.random() - 0.5) * 200 - 40; }
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9fb0e0, size: 0.35, transparent: true, opacity: 0.6 })));
+  })();
+
+  const desiredPos = new THREE.Vector3().copy(camera.position);
+  const desiredTarget = new THREE.Vector3().copy(controls.target);
+  let tweening = false;
+
+  let playing = false, speedMul = 1;
+  const btnPlay = document.getElementById('btn-play');
+  function setPlaying(state) {
+    playing = state;
+    btnPlay.classList.toggle('on', state);
+    btnPlay.textContent = state ? '⏸ 暂停动画' : '▶ 播放动画';
+    if (current && current.onPlay) current.onPlay(state);
+  }
+
+  const infoContent = document.getElementById('info-content');
+  function setInfo(info) {
+    if (!info) return;
+    infoContent.innerHTML = `<h2>${info.title}</h2>` + info.html;
+    document.getElementById('infopanel').scrollTop = 0;
+  }
+  const sceneControls = document.getElementById('scene-controls');
+
+  const ctx = { THREE, scene, camera, controls, setInfo, setPlayButton: setPlaying };
+
+  let current = null;
+  const builders = {
+    pipeline: scenePipeline,
+    transformer: sceneTransformer,
+    pd: scenePD,
+  };
+
+  function loadScene(name) {
+    if (current) { scene.remove(current.group); current.dispose(); current = null; }
+    setPlaying(false);
+    current = builders[name].build(ctx);
+    scene.add(current.group);
+    setInfo(current.defaultInfo);
+    sceneControls.innerHTML = current.controlsHTML || '';
+    sceneControls.style.display = current.controlsHTML ? 'flex' : 'none';
+    if (current.bindControls) current.bindControls(sceneControls);
+    if (current.camera) {
+      desiredPos.fromArray(current.camera.position);
+      desiredTarget.fromArray(current.camera.target);
+      tweening = true;
+    }
+  }
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      loadScene(tab.dataset.scene);
+    });
+  });
+
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  let downXY = null;
+  renderer.domElement.addEventListener('pointerdown', e => { downXY = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener('pointerup', e => {
+    if (!downXY) return;
+    const moved = Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]);
+    downXY = null;
+    if (moved > 6 || !current || !current.clickTargets || !current.clickTargets.length) return;
+    mouse.x = (e.clientX / innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const targets = current.clickTargets;
+    const hits = raycaster.intersectObjects(targets, true);
+    if (!hits.length) return;
+    let obj = hits[0].object;
+    while (obj && targets.indexOf(obj) === -1) obj = obj.parent;
+    if (!obj) return;
+    if (current.onPick) { const info = current.onPick(obj); if (info) setInfo(info); }
+  });
+
+  btnPlay.addEventListener('click', () => setPlaying(!playing));
+  document.getElementById('btn-step').addEventListener('click', () => { if (current && current.onStep) current.onStep(); });
+  document.getElementById('btn-reset').addEventListener('click', () => { setPlaying(false); if (current && current.onReset) current.onReset(); });
+  document.getElementById('speed').addEventListener('input', e => { speedMul = +e.target.value; });
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  const clock = new THREE.Clock();
+  function tick() {
+    const dt = Math.min(0.05, clock.getDelta()) * speedMul;
+    const t = clock.elapsedTime;
+    if (tweening) {
+      camera.position.lerp(desiredPos, 0.06);
+      controls.target.lerp(desiredTarget, 0.06);
+      if (camera.position.distanceTo(desiredPos) < 0.05) tweening = false;
+    }
+    if (current && current.update) current.update(dt, t, playing);
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+
+  document.getElementById('loading').style.display = 'none';
+  loadScene('pipeline');
+  tick();
+})();
+</script>
+</body>
+</html>

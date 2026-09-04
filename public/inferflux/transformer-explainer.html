@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Transformer Explainer · GPT-2 交互式可视化</title>
+<style>
+:root{
+  --bg:#f4f6fb; --panel:rgba(255,255,255,.85); --panel-solid:#ffffff; --border:#d5dcea;
+  --text:#1c2433; --muted:#5b6b83; --faint:#8a97ad;
+  --accent:#2563eb; --accent-2:#7c3aed; --cyan:#0ea5e9;
+  --q:#2563eb; --k:#f59e0b; --v:#10b981; --mlp:#7c3aed;
+  --grid:#e8edf6; --cell:#e2e8f2;
+  --radius:10px; --radius-sm:6px;
+  --rowH: 52px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{background:var(--bg); color:var(--text); overflow:hidden;
+  font-family:-apple-system,"SF Pro","Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:13px; -webkit-font-smoothing:antialiased;}
+
+/* ============ Top control bar ============ */
+#topbar{position:fixed; top:0; left:0; right:0; z-index:50;
+  background:var(--panel-solid); border-bottom:1px solid var(--border);
+  padding:9px 14px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+#topbar .brand{display:flex; align-items:baseline; gap:8px; margin-right:2px;}
+#topbar .brand h1{font-size:14px; font-weight:700; letter-spacing:.01em;}
+#topbar .brand .sub{color:var(--muted); font-size:11px;}
+.ctrl{display:flex; align-items:center; gap:7px;}
+.ctrl label{display:flex; align-items:center; gap:5px; color:var(--muted); font-size:11px; white-space:nowrap;}
+.ctrl .val{color:var(--accent); font-weight:600; font-family:ui-monospace,Menlo,monospace; font-size:11px; min-width:26px;}
+select, input[type=range]{
+  background:var(--grid); border:1px solid var(--border); color:var(--text);
+  border-radius:var(--radius-sm); padding:3px 6px; font-size:12px;}
+select{cursor:pointer;}
+select:hover{border-color:var(--accent);}
+input[type=range]{width:74px; accent-color:var(--accent); padding:0; border:none;}
+.seg{display:flex; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden;}
+.seg button{background:transparent; border:none; color:var(--muted); font-size:11px;
+  padding:3px 8px; cursor:pointer; transition:.15s;}
+.seg button.on{background:var(--accent); color:#fff; font-weight:700;}
+.seg button:hover:not(.on){color:var(--text);}
+#btnGenerate{background:var(--accent); border:1px solid var(--accent); color:#fff;
+  border-radius:var(--radius-sm); padding:4px 12px; font-size:12px; font-weight:700; cursor:pointer; transition:.15s;}
+#btnGenerate:hover{background:#1d4ed8;}
+#btnGenerate:active{transform:translateY(1px);}
+#btnLang{margin-left:auto; background:var(--grid); border:1px solid var(--border); color:var(--muted);
+  border-radius:var(--radius-sm); padding:3px 9px; cursor:pointer; font-size:11px;}
+#btnLang:hover{color:var(--text); border-color:var(--accent);}
+#predStrip{display:flex; align-items:center; gap:6px; font-size:12px; width:100%;
+  border-top:1px dashed var(--border); padding-top:6px; margin-top:4px;}
+#predStrip .in{color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#predStrip .out{color:var(--accent-2); font-weight:700; white-space:nowrap;}
+#predStrip .delim{color:var(--faint);}
+
+/* ============ Stage (pipeline) ============ */
+#stage{position:fixed; top:78px; left:0; right:0; bottom:0; overflow:auto;
+  padding:16px 18px 60px;}
+#stage::-webkit-scrollbar{height:10px; width:10px;}
+#stage::-webkit-scrollbar-thumb{background:#c9d2e0; border-radius:5px;}
+#stage::-webkit-scrollbar-track{background:transparent;}
+.pipeline{display:flex; gap:14px; width:max-content; min-height:100%; align-items:stretch;}
+.col{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 10px 12px; display:flex; flex-direction:column; gap:8px; flex-shrink:0;}
+.col .colhead{font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.04em;
+  text-transform:uppercase; display:flex; align-items:center; gap:6px;}
+.col .colhead .num{color:var(--faint); font-weight:400;}
+.col .colhead .hint{color:var(--faint); font-weight:400; text-transform:none; font-size:10px;}
+.rows{display:flex; flex-direction:column; gap:6px;}
+
+/* Token row */
+.token-row{display:flex; align-items:center; gap:8px; height:var(--rowH); position:relative;}
+.token-row .tok-label{min-width:64px; max-width:120px; text-align:right; font-size:12px;
+  color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:default;}
+.token-row .tok-id{min-width:44px; font-family:ui-monospace,Menlo,monospace; font-size:10px;
+  color:var(--faint); text-align:right;}
+.token-row .vec{width:15px; height:calc(var(--rowH) - 10px); border-radius:3px; overflow:hidden;
+  position:relative; background:var(--grid); border:1px solid var(--border); flex-shrink:0;}
+.token-row .vec canvas{position:absolute; inset:0; width:100%; height:100%;}
+.token-row .op{font-size:13px; color:var(--faint); width:14px; text-align:center; flex-shrink:0;}
+.token-row .idx{font-size:10px; color:var(--faint); font-family:ui-monospace,Menlo,monospace; width:16px;}
+.token-row.sel{background:rgba(92,166,255,.08); border-radius:6px;}
+.token-row.sel .tok-label{color:var(--accent);}
+
+/* Col A — token + embedding */
+#colTokens{min-width:238px;}
+#colTokens .token-row{gap:6px;}
+#colTokens .embed-detail{display:flex; align-items:center; gap:6px;}
+#colTokens .idxbox{font-size:9px; color:var(--faint); font-family:ui-monospace,Menlo,monospace;
+  display:flex; flex-direction:column; line-height:1.15; text-align:left;}
+
+/* Col B — QKV */
+#colQkv{min-width:128px;}
+.qkv-stack{display:flex; flex-direction:column; gap:3px; height:calc(var(--rowH) - 10px);
+  position:relative; flex:1;}
+.qkv-stack .sub{flex:1; border-radius:3px; position:relative; overflow:hidden; background:var(--grid);}
+.qkv-stack .sub canvas{position:absolute; inset:0; width:100%; height:100%;}
+.qkv-stack .tag{position:absolute; left:2px; top:1px; font-size:8px; font-weight:700; z-index:2;
+  color:rgba(255,255,255,.85); text-shadow:0 1px 2px rgba(0,0,0,.7); line-height:1;}
+.qkv-stack .hl{position:absolute; left:0; right:0; height:calc(100%/12); background:rgba(255,255,255,.28);
+  border:1px solid rgba(255,255,255,.5); z-index:1; transition:top .15s;}
+
+/* Col C — Attention */
+#colAttn{min-width:340px;}
+#colAttn .attn-wrap{position:relative;}
+.attn-label-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+.attn-label-row .stage-name{font-size:11px; color:var(--muted);}
+.attn-label-row .lh{font-family:ui-monospace,Menlo,monospace; font-size:10px; color:var(--accent);}
+.attn-scroller{overflow-x:auto; overflow-y:hidden; padding-bottom:4px;}
+.attn-scroller::-webkit-scrollbar{height:6px;}
+.attn-scroller::-webkit-scrollbar-thumb{background:#c9d2e0; border-radius:3px;}
+#attnSvg{display:block;}
+#attnSvg .cell{cursor:crosshair;}
+#attnSvg .qlabel,#attnSvg .klabel{font-size:10px; fill:var(--muted); cursor:default;}
+#attnSvg .klabel{text-anchor:middle;}
+#attnSvg .qlabel{text-anchor:end;}
+#attnSvg text.hot{fill:var(--accent); font-weight:700;}
+#attnSvg rect.hot{stroke:var(--accent); stroke-width:1.5;}
+
+/* Col D — MLP */
+#colMlp{min-width:96px;}
+.mlp-stack{display:flex; flex-direction:column; gap:3px; height:calc(var(--rowH) - 10px);
+  position:relative; flex:1; background:var(--grid); border-radius:3px; overflow:hidden;}
+.mlp-stack canvas{position:absolute; inset:0; width:100%; height:100%;}
+.mlp-stack .lbl{position:absolute; left:2px; top:1px; font-size:8px; color:rgba(20,28,44,.72);
+  z-index:2; text-shadow:0 1px 2px rgba(255,255,255,.7); line-height:1;}
+
+/* Col E — Softmax / Probs */
+#colOut{min-width:300px; max-width:360px;}
+.prob-head{display:flex; align-items:center; justify-content:space-between;}
+.prob-head .score{font-size:11px; color:var(--muted);}
+.prob-list{display:flex; flex-direction:column; gap:4px; overflow-y:auto; flex:1;}
+.prob-row{display:flex; align-items:center; gap:6px; height:22px; border-radius:4px; padding:0 4px;
+  cursor:default; position:relative;}
+.prob-row:hover{background:rgba(92,166,255,.08);}
+.prob-row .rank{width:22px; font-size:10px; color:var(--faint); font-family:ui-monospace,Menlo,monospace;}
+.prob-row .tok{min-width:70px; max-width:120px; font-size:11px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; text-align:right; flex-shrink:0;}
+.prob-row .track{flex:1; height:8px; background:var(--grid); border-radius:4px; overflow:hidden; position:relative;}
+.prob-row .fill{height:100%; border-radius:4px; background:var(--accent); transition:width .35s cubic-bezier(.2,.7,.3,1);}
+.prob-row .pct{width:48px; font-size:10px; color:var(--muted); font-family:ui-monospace,Menlo,monospace; text-align:right;}
+.prob-row.pred .tok{color:var(--accent-2); font-weight:700;}
+.prob-row.pred .fill{background:var(--accent-2);}
+.prob-row.pred{background:rgba(167,139,250,.1); border:1px solid rgba(167,139,250,.35);}
+.prob-row .clip{position:absolute; inset:0;}
+
+/* ============ Overlay: attention expansion ============ */
+#overlay{position:fixed; inset:0; z-index:100; display:none;
+  background:rgba(244,247,252,.92); backdrop-filter:blur(6px);}
+#overlay.on{display:flex; align-items:center; justify-content:center; padding:20px;}
+#overlay .panel{background:var(--panel-solid); border:1px solid var(--border); border-radius:14px;
+  max-width:98vw; max-height:94vh; overflow:auto; padding:18px 20px;}
+#overlay .panel::-webkit-scrollbar{width:10px; height:10px;}
+#overlay .panel::-webkit-scrollbar-thumb{background:#c9d2e0; border-radius:5px;}
+#overlay .ov-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+#overlay .ov-head h2{font-size:14px;}
+#overlay .ov-head .close{background:var(--grid); border:1px solid var(--border); color:var(--muted);
+  border-radius:var(--radius-sm); padding:3px 10px; cursor:pointer; font-size:12px;}
+#overlay .ov-head .close:hover{color:var(--text); border-color:var(--accent);}
+.matrix-stage{display:flex; align-items:flex-start; gap:10px; flex-wrap:nowrap; overflow-x:auto;}
+.matrix-stage::-webkit-scrollbar{height:6px;}
+.matrix-stage::-webkit-scrollbar-thumb{background:#c9d2e0; border-radius:3px;}
+.mstage{display:flex; flex-direction:column; gap:6px; align-items:center;}
+.mstage .mname{font-size:11px; font-weight:700; color:var(--muted);}
+.mstage .mdesc{font-size:10px; color:var(--faint); text-align:center; max-width:200px;}
+.mstage svg{display:block; background:var(--grid); border:1px solid var(--border); border-radius:8px;}
+.mstage .scale{display:flex; align-items:center; gap:6px; font-family:ui-monospace,Menlo,monospace; font-size:9px; color:var(--muted);}
+.mstage .scale .bar{width:120px; height:6px; border-radius:3px; border:1px solid var(--border);}
+#flowZone{margin-top:14px; border-top:1px solid var(--border); padding-top:10px;}
+#flowZone .fh{font-size:11px; color:var(--muted); margin-bottom:6px;}
+#flowSvg{display:block; background:var(--grid); border:1px solid var(--border); border-radius:8px;}
+
+/* ============ Tooltip ============ */
+#tip{position:fixed; z-index:200; display:none; background:#fff; border:1px solid var(--accent);
+  border-radius:6px; padding:4px 8px; font-size:11px; pointer-events:none;
+  box-shadow:0 4px 16px rgba(15,23,42,.18); white-space:nowrap; color:var(--text);}
+#tip b{color:var(--accent); font-family:ui-monospace,Menlo,monospace;}
+
+/* ============ Badge ============ */
+.badge{position:fixed; bottom:10px; right:14px; color:var(--faint); font-size:10px; z-index:40;}
+@media (max-width:720px){
+  #topbar .brand .sub{display:none;}
+  #topbar{gap:8px; padding:8px 10px;}
+  .ctrl input[type=range]{width:58px;}
+  #predStrip{font-size:11px;}
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="brand"><h1>Transformer Explainer</h1><span class="sub">GPT-2 · 12 层 · 12 头 · 768 维</span></div>
+
+  <span class="ctrl">
+    <label><span data-i="ex">示例</span>
+      <select id="selExample"></select>
+    </label>
+  </span>
+
+  <span class="ctrl">
+    <label><span data-i="layer">层 Layer</span>
+      <input type="range" id="inpLayer" min="0" max="11" value="0">
+      <span class="val" id="valLayer">0</span>
+    </label>
+    <label><span data-i="head">头 Head</span>
+      <input type="range" id="inpHead" min="0" max="11" value="0">
+      <span class="val" id="valHead">0</span>
+    </label>
+  </span>
+
+  <span class="ctrl">
+    <label><span data-i="temp">温度 T</span>
+      <input type="range" id="inpTemp" min="20" max="500" step="10" value="80">
+      <span class="val" id="valTemp">0.8</span>
+    </label>
+    <span class="seg" id="segSamp">
+      <button data-t="top-k" class="on">top-k</button>
+      <button data-t="top-p">top-p</button>
+    </span>
+    <label id="lblSamp"><span id="sampName">k</span>
+      <input type="range" id="inpSamp" min="1" max="50" step="1" value="5">
+      <span class="val" id="valSamp">5</span>
+    </label>
+    <button id="btnGenerate" data-i="gen">重新采样</button>
+  </span>
+
+  <button id="btnLang">EN</button>
+
+  <div id="predStrip">
+    <span class="in" id="predInput"></span>
+    <span class="delim">→</span>
+    <span class="out" id="predOut"></span>
+    <span style="color:var(--faint); font-size:10px; margin-left:auto;" data-i="tipGen">生成按钮按当前概率重新采样下一个 token</span>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="pipeline">
+    <!-- Col A: tokens + embedding -->
+    <div class="col" id="colTokens">
+      <div class="colhead"><span data-i="a">Token Embedding</span><span class="hint">· token + id + 向量</span></div>
+      <div class="rows" id="rowsTokens"></div>
+    </div>
+    <!-- Col B: QKV -->
+    <div class="col" id="colQkv">
+      <div class="colhead"><span data-i="b">QKV</span><span class="hint">· W_q/W_k/W_v</span></div>
+      <div class="rows" id="rowsQkv"></div>
+    </div>
+    <!-- Col C: Attention -->
+    <div class="col" id="colAttn">
+      <div class="colhead" style="cursor:pointer;" id="attnHead">
+        <span data-i="c">Attention</span><span class="hint" data-i="cH">· 点击放大 QK→Mask→Softmax</span>
+      </div>
+      <div class="attn-wrap">
+        <div class="attn-label-row">
+          <span class="stage-name" id="attnStageName">Softmax</span>
+          <span class="lh" id="attnLH"></span>
+        </div>
+        <div class="attn-scroller"><svg id="attnSvg"></svg></div>
+      </div>
+    </div>
+    <!-- Col D: MLP -->
+    <div class="col" id="colMlp">
+      <div class="colhead"><span data-i="d">MLP</span><span class="hint">· GeLU→Linear</span></div>
+      <div class="rows" id="rowsMlp"></div>
+    </div>
+    <!-- Col E: Softmax / Probs -->
+    <div class="col" id="colOut">
+      <div class="colhead"><span data-i="e">Softmax / 下一个 token</span></div>
+      <div class="prob-head"><span class="score" id="probScore"></span></div>
+      <div class="prob-list" id="probList"></div>
+    </div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="panel">
+    <div class="ov-head">
+      <h2 id="ovTitle">Attention 展开</h2>
+      <button class="close" id="ovClose">✕ 关闭</button>
+    </div>
+    <div class="matrix-stage" id="matrixStage"></div>
+    <div id="flowZone">
+      <div class="fh" data-i="flow">注意力流 · Q<sub>i</sub> 对 K<sub>j</sub> 的权重（线宽 ∝ softmax 权重，点击左侧 token 高亮该行）</div>
+      <svg id="flowSvg"></svg>
+    </div>
+  </div>
+</div>
+
+<div id="tip"></div>
+<div class="badge">参照 poloclub/transformer-explainer · 真实 GPT-2 激活数据</div>
+
+<script src="transformer-explainer-data.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   Transformer Explainer — GPT-2 交互式可视化
+   参照 poloclub/transformer-explainer（Svelte）用原生 JS 实现，
+   数据来自其缓存的真实 GPT-2（distilgpt2）激活：5 个示例 prompt，
+   12 层 × 12 头注意力矩阵、top-50 logits、采样结果。
+   ============================================================ */
+const D = window.TE_DATA;
+const N_LAYERS = 12, N_HEADS = 12, HEAD_DIM = 64, SQRT_D = 8; // 768/12=64, sqrt(64)=8
+
+const $ = (id) => document.getElementById(id);
+const TIP = $('tip');
+
+/* ---------- deterministic RNG for placeholder vectors ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function vecData(seed, len){const r=mulberry32(seed);const a=new Float32Array(len);for(let i=0;i<len;i++)a[i]=r()*2-1;return a;}
+
+/* ---------- state ---------- */
+let ex=0, layer=0, head=0, temp=0.8, sampType='top-k', sampVal=5;
+let selToken=0;              // highlighted query token
+let predicted=null;          // {rank, tokenId, token}
+let lang='zh';
+
+const I18N={
+  zh:{ex:'示例',layer:'层 Layer',head:'头 Head',temp:'温度 T',gen:'重新采样',a:'Token Embedding',b:'QKV',c:'Attention',cH:'· 点击放大 QK→Mask→Softmax',d:'MLP',e:'Softmax / 下一个 token',flow:'注意力流 · Q对K的权重（线宽 ∝ softmax 权重，点击左侧 token 高亮该行）',tipGen:'生成按钮按当前概率重新采样下一个 token'},
+  en:{ex:'Example',layer:'Layer',head:'Head',temp:'Temp T',gen:'Resample',a:'Token Embedding',b:'QKV',c:'Attention',cH:'· click to expand QK→Mask→Softmax',d:'MLP',e:'Softmax / next token',flow:'Attention flow · weight of Q→K (width ∝ softmax, click a token to highlight)',tipGen:'Resample next token from current distribution'}
+};
+
+/* ---------- derived helpers ---------- */
+function exData(){return D[ex];}
+function tokens(){return exData().tokens;}
+function n(){return exData().n;}
+function attnMat(){return exData().attn[layer][head];}        // n x n raw QK
+function softmaxMat(){return exData().softmax[layer][head];}  // n x n
+function scaledMat(){const a=attnMat();return a.map(r=>r.map(v=>v/SQRT_D));}
+function maskedMat(){const a=scaledMat();return a.map((r,i)=>r.map((v,j)=>j>i?null:v));}
+function fmt(v,p){if(v===null||v===undefined)return '—';if(v===Infinity)return '∞';if(v===-Infinity)return '-∞';return v.toFixed(p!==undefined?p:3);}
+function fmtToken(t){
+  t=(t||'').replace(/\n/g,'␤');
+  if(/^\s/.test(t)) return '␣'+t.trimStart();
+  return t;
+}
+
+/* ---------- probability recompute (mirrors reference getProbabilities) ---------- */
+function computeProbs(){
+  const base=exData().probs.slice(); // top-50 {tokenId, logit, token}
+  const scaled=base.map(d=>({...d, scaledLogit:d.logit/temp}));
+  let out;
+  if(sampType==='top-p'){
+    // softmax over all scaled
+    const max=Math.max(...scaled.map(d=>d.scaledLogit));
+    const exps=scaled.map(d=>Math.exp(d.scaledLogit-max));
+    const sum=exps.reduce((a,b)=>a+b,0);
+    const probs=scaled.map((d,i)=>({...d, probability:exps[i]/sum}));
+    let cum=0,cut=-1;
+    for(let i=0;i<probs.length;i++){cum+=probs[i].probability;if(cum>=sampVal){cut=i;break;}}
+    if(cut===-1)cut=probs.length-1;
+    const top=probs.slice(0,cut+1);
+    const sumTop=top.reduce((s,d)=>s+d.probability,0);
+    out=top.map((d,i)=>({...d, rank:i, probability:d.probability/sumTop, cut}));
+  }else{
+    const filtered=scaled.map((d,i)=>({...d, topKLogit:i<sampVal?d.scaledLogit:-Infinity}));
+    const logits=filtered.map(d=>d.topKLogit);
+    const max=Math.max(...logits);
+    const exps=logits.map(v=>v===-Infinity?0:Math.exp(v-max));
+    const sum=exps.reduce((a,b)=>a+b,0);
+    out=filtered.map((d,i)=>({...d, rank:i, probability:exps[i]/sum}));
+  }
+  return out.filter(d=>d.probability>1e-9);
+}
+function sample(probs){
+  const r=Math.random();let cum=0;
+  for(const p of probs){cum+=p.probability;if(r<cum)return p;}
+  return probs[probs.length-1];
+}
+
+/* ---------- vector drawing ---------- */
+const COLOR_SCHEMES={
+  gray:{a:['#46536b','#6b7689']},
+  blue:{a:['#24517f','#5ca6ff']},
+  orange:{a:['#6b4420','#f0a44a']},
+  green:{a:['#265a3a','#57d977']},
+  purple:{a:['#4a3a72','#a78bfa']},
+};
+function drawVec(canvas, seed, scheme, active, hlStart, hlLen){
+  const ctx=canvas.getContext('2d');
+  const w=canvas.clientWidth*2, h=canvas.clientHeight*2;
+  canvas.width=w; canvas.height=h;
+  const c=COLOR_SCHEMES[scheme]||COLOR_SCHEMES.gray;
+  const data=vecData(seed, 44);
+  const lines=Math.max(8, Math.floor(h/3));
+  for(let i=0;i<lines;i++){
+    const t=i/(lines-1);
+    const v=data[i%data.length];
+    const amp=0.5+0.5*Math.abs(v);
+    // gradient base
+    const mix=(t*0.7+0.3*Math.abs(v));
+    const r0=parseInt(c.a[0].slice(1,3),16), g0=parseInt(c.a[0].slice(3,5),16), b0=parseInt(c.a[0].slice(5,7),16);
+    const r1=parseInt(c.a[1].slice(1,3),16), g1=parseInt(c.a[1].slice(3,5),16), b1=parseInt(c.a[1].slice(5,7),16);
+    let R=Math.round(r0+(r1-r0)*mix), G=Math.round(g0+(g1-g0)*mix), B=Math.round(b0+(b1-b0)*mix);
+    if(!active) { R=Math.round(R*.45); G=Math.round(G*.45); B=Math.round(B*.45); }
+    ctx.fillStyle=`rgb(${R},${G},${B})`;
+    ctx.fillRect(0, i*3, w, 3);
+    // brighter spike for a highlight segment (current head)
+    if(hlStart!==undefined && i>=hlStart && i<hlStart+hlLen){
+      ctx.fillStyle='rgba(255,255,255,.55)';
+      ctx.fillRect(0, i*3, w, 3);
+    }
+  }
+  ctx.strokeStyle='rgba(15,23,42,.12)'; ctx.lineWidth=1;
+  ctx.strokeRect(.5,.5,w-1,h-1);
+}
+
+/* ---------- render pipeline (tokens / qkv / mlp) ---------- */
+function renderTokens(){
+  const rows=$('rowsTokens'); rows.innerHTML='';
+  tokens().forEach((tok,i)=>{
+    const row=document.createElement('div');
+    row.className='token-row'+(i===selToken?' sel':'');
+    row.innerHTML=`
+      <span class="tok-label" title="${tok}">${fmtToken(tok)}</span>
+      <div class="embed-detail">
+        <div class="idxbox"><span>id</span><span>${exData().tokenIds[i]}</span></div>
+        <div class="vec"><canvas></canvas></div>
+      </div>
+      <span class="op">+</span>
+      <div class="vec"><canvas></canvas></div>
+      <span class="op">=</span>
+      <div class="vec"><canvas></canvas></div>`;
+    row.addEventListener('click',()=>{selToken=i;renderTokens();renderAttn();renderQkv();renderMlp();drawFlow();});
+    rows.appendChild(row);
+    const cv=row.querySelectorAll('canvas');
+    drawVec(cv[0], ex*1000+i*17, 'gray', i===selToken);
+    drawVec(cv[1], ex*1000+i*17+5, 'blue', i===selToken);
+    drawVec(cv[2], ex*2000+i*23, 'purple', i===selToken);
+  });
+}
+
+function renderQkv(){
+  const rows=$('rowsQkv'); rows.innerHTML='';
+  const hlStart=Math.floor(head/N_HEADS*44), hlLen=Math.max(1,Math.round(44/N_HEADS));
+  tokens().forEach((tok,i)=>{
+    const row=document.createElement('div');
+    row.className='token-row'+(i===selToken?' sel':'');
+    row.style.cursor='default';
+    row.innerHTML=`
+      <div class="qkv-stack">
+        <div class="sub" style="background:linear-gradient(180deg,#24517f,#1a3352);"><span class="tag">Q</span><canvas></canvas></div>
+        <div class="sub" style="background:linear-gradient(180deg,#6b4420,#38260f);"><span class="tag">K</span><canvas></canvas></div>
+        <div class="sub" style="background:linear-gradient(180deg,#265a3a,#143525);"><span class="tag">V</span><canvas></canvas></div>
+        <div class="hl" style="top:${(hlStart/44*100).toFixed(1)}%; height:${(hlLen/44*100).toFixed(1)}%;"></div>
+      </div>`;
+    rows.appendChild(row);
+    const cv=row.querySelectorAll('canvas');
+    drawVec(cv[0], ex*300+i*11+1, 'blue', i===selToken);
+    drawVec(cv[1], ex*300+i*11+2, 'orange', i===selToken);
+    drawVec(cv[2], ex*300+i*11+3, 'green', i===selToken);
+  });
+}
+
+function renderMlp(){
+  const rows=$('rowsMlp'); rows.innerHTML='';
+  tokens().forEach((tok,i)=>{
+    const row=document.createElement('div');
+    row.className='token-row'+(i===selToken?' sel':'');
+    row.style.cursor='default';
+    row.innerHTML=`
+      <div class="mlp-stack">
+        <canvas></canvas><span class="lbl">↑</span>
+      </div>`;
+    rows.appendChild(row);
+    drawVec(row.querySelector('canvas'), ex*500+i*29, 'purple', i===selToken);
+  });
+}
+
+/* ---------- attention matrix (small, in pipeline) ---------- */
+function cellColorStage(stage, v){
+  if(stage==='softmax'){ // 0..1 → transparent → accent-2
+    if(v===null) return 'transparent';
+    const a=0.06+v*0.85;
+    return `rgba(167,139,250,${a.toFixed(3)})`;
+  }
+  if(stage==='mask'){ // -3..3 diverging
+    if(v===null) return 'transparent';
+    const t=Math.max(-3,Math.min(3,v))/3;
+    if(t<0) return `rgba(92,166,255,${(0.1+Math.abs(t)*0.8).toFixed(3)})`;
+    if(t>0) return `rgba(240,164,74,${(0.1+t*0.8).toFixed(3)})`;
+    return 'rgba(120,130,150,.18)';
+  }
+  // qk: raw dot product, symmetric diverging by max abs
+  if(v===null) return 'transparent';
+  const mx=6;
+  const t=Math.max(-mx,Math.min(mx,v))/mx;
+  if(t<0) return `rgba(92,166,255,${(0.12+Math.abs(t)*0.8).toFixed(3)})`;
+  if(t>0) return `rgba(240,164,74,${(0.12+t*0.8).toFixed(3)})`;
+  return 'rgba(120,130,150,.18)';
+}
+function buildAttnSvg(stage, cell, targetSvg, big){
+  const tks=tokens(), nn=n();
+  const cellSize=big?46:Math.max(24,Math.min(44,Math.floor(320/nn)));
+  const padTop=big?28:22, padLeft=big?78:52;
+  const rowH=cellSize+ (big?8:4);
+  const colW=cellSize+ (big?8:4);
+  const W=padLeft+nn*colW, H=padTop+nn*rowH;
+  const ns='http://www.w3.org/2000/svg';
+  let svg=targetSvg;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.setAttribute('width',W); svg.setAttribute('height',H);
+  svg.innerHTML='';
+  // key labels (top)
+  tks.forEach((k,j)=>{
+    const t=document.createElementNS(ns,'text');
+    t.setAttribute('class','klabel'+(j===selToken?' hot':''));
+    t.setAttribute('x',padLeft+j*colW+cellSize/2);
+    t.setAttribute('y',padTop-8);
+    t.textContent=fmtToken(k);
+    svg.appendChild(t);
+  });
+  // query labels (left) + cells
+  tks.forEach((q,i)=>{
+    const t=document.createElementNS(ns,'text');
+    t.setAttribute('class','qlabel'+(i===selToken?' hot':''));
+    t.setAttribute('x',padLeft-8);
+    t.setAttribute('y',padTop+i*rowH+cellSize/2+3);
+    t.textContent=fmtToken(q);
+    svg.appendChild(t);
+    const src=stage==='softmax'?softmaxMat():(stage==='mask'?maskedMat():(stage==='qk'?attnMat():scaledMat()));
+    svg.dataset.stage=stage;
+    for(let j=0;j<nn;j++){
+      const v=(src[i]||[])[j];
+      const rect=document.createElementNS(ns,'rect');
+      rect.setAttribute('class','cell'+(big&&i===selToken?' hot':''));
+      rect.setAttribute('x',padLeft+j*colW);
+      rect.setAttribute('y',padTop+i*rowH);
+      rect.setAttribute('width',cellSize); rect.setAttribute('height',cellSize);
+      rect.setAttribute('rx',big?6:4);
+      rect.setAttribute('fill',cellColorStage(stage,v));
+      rect.setAttribute('data-i',i); rect.setAttribute('data-j',j);
+      if(v===null||v===undefined) rect.setAttribute('data-empty','1');
+      rect.addEventListener('mouseenter',(e)=>cellEnter(e,v,i,j));
+      rect.addEventListener('mousemove',moveTip);
+      rect.addEventListener('mouseleave',hideTip);
+      if(big){ rect.addEventListener('click',()=>{selToken=i;renderAll();drawFlow();}); }
+      svg.appendChild(rect);
+    }
+  });
+}
+
+function renderAttn(){
+  buildAttnSvg('softmax', 'softmax', $('attnSvg'), false);
+  $('attnStageName').textContent='Softmax';
+  $('attnLH').textContent=`L${layer} · H${head}`;
+}
+
+function cellEnter(e,v,i,j){
+  const stage=(e.target.ownerSVGElement && e.target.ownerSVGElement.dataset.stage)||'softmax';
+  const tks=tokens();
+  let s=`<b>Q</b> “${tks[i]}” → <b>K</b> “${tks[j]}”`;
+  s+=`<br>${fmt(v,4)}`;
+  const stageName={qk:'Q·Kᵀ',mask:'Scale·Mask',softmax:'Softmax'}[stage]||stage;
+  s+=` · ${stageName}`;
+  TIP.innerHTML=s; TIP.style.display='block';
+}
+function moveTip(e){TIP.style.left=(e.clientX+14)+'px';TIP.style.top=(e.clientY+16)+'px';}
+function hideTip(){TIP.style.display='none';}
+
+/* ---------- probability list ---------- */
+function renderProbs(){
+  const probs=computeProbs();
+  const max=probs.length?probs[0].probability:0;
+  const list=$('probList'); list.innerHTML='';
+  const shown=probs.slice(0,14);
+  shown.forEach((p,i)=>{
+    const row=document.createElement('div');
+    const isPred=predicted && p.tokenId===predicted.tokenId;
+    row.className='prob-row'+(isPred?' pred':'');
+    row.innerHTML=`
+      <span class="rank">${p.rank+1}</span>
+      <span class="tok" title="${p.tokenId}">${p.token}</span>
+      <div class="track"><div class="fill" style="width:${(p.probability/max*100).toFixed(1)}%"></div></div>
+      <span class="pct">${(p.probability*100).toFixed(2)}%</span>`;
+    row.addEventListener('mouseenter',()=>{
+      TIP.innerHTML=`<b>logit</b> ${fmt(p.logit,2)} · <b>rank</b> ${p.rank+1} / top-50`;
+      TIP.style.display='block';
+    });
+    row.addEventListener('mousemove',moveTip);
+    row.addEventListener('mouseleave',hideTip);
+    row.addEventListener('click',()=>{
+      predicted={tokenId:p.tokenId, token:p.token, rank:p.rank};
+      updatePredStrip(); renderProbs();
+    });
+    list.appendChild(row);
+  });
+  $('probScore').textContent=`top-50 · ${sampType}${sampType==='top-k'?'='+sampVal:'='+sampVal.toFixed(2)} · T=${temp.toFixed(1)}`;
+}
+
+function updatePredStrip(){
+  $('predInput').textContent=exData().prompt;
+  $('predOut').textContent=predicted?predicted.token:'—';
+}
+
+/* ---------- flow sankey (overlay) ---------- */
+let flowSel=0;
+function drawFlow(){
+  const svg=$('flowSvg');
+  const tks=tokens(), nn=n(), sm=softmaxMat();
+  const h=Math.max(220, nn*52), w=560;
+  const pad=44, colX=pad, colX2=w-pad;
+  const colY=(i)=>pad+ (h-2*pad)/(nn-1||1)*i;
+  const ns='http://www.w3.org/2000/svg';
+  svg.setAttribute('viewBox',`0 0 ${w} ${h}`); svg.setAttribute('width',w); svg.setAttribute('height',h);
+  svg.innerHTML='';
+  // max weight per row for normalization
+  const rowMax=sm.map(r=>Math.max(...r));
+  // curves
+  const gl=document.createElementNS(ns,'g');
+  tks.forEach((q,i)=>{
+    tks.forEach((k,j)=>{
+      if(j>i) return; // causal
+      const wgt=sm[i][j], maxW=rowMax[i]||1;
+      const alpha=0.1+0.75*(wgt/maxW);
+      const sw=1+5*(wgt/maxW);
+      const y1=colY(i), y2=colY(j);
+      const cx1=colX+30, cx2=colX2-30;
+      const path=document.createElementNS(ns,'path');
+      path.setAttribute('d',`M ${colX} ${y1} C ${cx1} ${y1}, ${cx2} ${y2}, ${colX2} ${y2}`);
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke', i===flowSel? 'rgba(92,166,255,'+alpha.toFixed(3)+')' : 'rgba(163,177,198,'+(alpha*0.5).toFixed(3)+')');
+      path.setAttribute('stroke-width',sw);
+      path.setAttribute('stroke-linecap','round');
+      path.setAttribute('data-i',i); path.setAttribute('data-j',j);
+      path.addEventListener('mouseenter',()=>{
+        TIP.innerHTML=`<b>L${layer}·H${head}</b> Q“${tks[i]}”→K“${tks[j]}”<br>权重 ${fmt(wgt,4)}`;
+        TIP.style.display='block';
+      });
+      path.addEventListener('mousemove',moveTip);
+      path.addEventListener('mouseleave',hideTip);
+      gl.appendChild(path);
+    });
+  });
+  svg.appendChild(gl);
+  // nodes
+  tks.forEach((tok,i)=>{
+    const g=document.createElementNS(ns,'g');
+    g.style.cursor='pointer';
+    const left=document.createElementNS(ns,'circle');
+    left.setAttribute('cx',colX); left.setAttribute('cy',colY(i));
+    left.setAttribute('r',9); left.setAttribute('fill', i===flowSel?'#2563eb':'#5b6b83');
+    left.setAttribute('stroke', i===flowSel?'#2563eb':'#8a97ad');
+    const lt=document.createElementNS(ns,'text');
+    lt.setAttribute('x',colX-10); lt.setAttribute('y',colY(i)+3);
+    lt.setAttribute('text-anchor','end'); lt.setAttribute('font-size','10');
+    lt.setAttribute('fill', i===flowSel?'#2563eb':'#5b6b83');
+    lt.textContent=fmtToken(tok);
+    const right=document.createElementNS(ns,'circle');
+    right.setAttribute('cx',colX2); right.setAttribute('cy',colY(i));
+    right.setAttribute('r',9); right.setAttribute('fill', i===flowSel?'#2563eb':'#5b6b83');
+    right.setAttribute('stroke', i===flowSel?'#2563eb':'#8a97ad');
+    const rt=document.createElementNS(ns,'text');
+    rt.setAttribute('x',colX2+10); rt.setAttribute('y',colY(i)+3);
+    rt.setAttribute('font-size','10'); rt.setAttribute('fill', i===flowSel?'#2563eb':'#5b6b83');
+    rt.textContent=fmtToken(tok);
+    g.appendChild(left);g.appendChild(lt);g.appendChild(right);g.appendChild(rt);
+    g.addEventListener('click',()=>{flowSel=i;drawFlow();});
+    g.addEventListener('mouseenter',()=>{TIP.innerHTML='点击高亮该 token 的注意力行';TIP.style.display='block';});
+    g.addEventListener('mousemove',moveTip);
+    g.addEventListener('mouseleave',hideTip);
+    svg.appendChild(g);
+  });
+}
+
+/* ---------- overlay expansion ---------- */
+let ovStage='softmax';
+function renderOverlay(){
+  const tks=tokens();
+  $('ovTitle').textContent=`Attention · Layer ${layer} · Head ${head} — “${exData().prompt}”`;
+  const stage=$('matrixStage'); stage.innerHTML='';
+  const stages=[
+    {key:'qk', name:'Q · Kᵀ', desc:'Query 与 Key 的点积（未缩放）', mat:attnMat, scale:{lo:-6,hi:6}},
+    {key:'mask', name:'Scale · Mask', desc:`除以 √dₖ=${SQRT_D} 后施加因果掩码`, mat:maskedMat, scale:{lo:-3,hi:3}},
+    {key:'softmax', name:'Softmax', desc:'行归一化后的注意力权重（因果：j≤i）', mat:softmaxMat, scale:{lo:0,hi:1}},
+  ];
+  stages.forEach(st=>{
+    const wrap=document.createElement('div');
+    wrap.className='mstage';
+    const name=document.createElement('div'); name.className='mname'; name.textContent=st.name;
+    const desc=document.createElement('div'); desc.className='mdesc'; desc.textContent=st.desc;
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    const cell=st.key==='qk'?attnMat():st.key==='mask'?maskedMat():softmaxMat();
+    buildAttnSvg(st.key, cell, svg, true);
+    // color scale bar
+    const sc=document.createElement('div'); sc.className='scale';
+    const bar=document.createElement('div'); bar.className='bar';
+    const bg = st.key==='qk'?'linear-gradient(90deg,#5ca6ff,rgba(120,130,150,.2),#f0a44a)':
+               st.key==='mask'?'linear-gradient(90deg,#5ca6ff,rgba(120,130,150,.2),#f0a44a)':
+               'linear-gradient(90deg,rgba(167,139,250,.06),#a78bfa)';
+    bar.style.background=bg;
+    sc.innerHTML=`<span>${st.scale.lo}</span>`;
+    sc.appendChild(bar);
+    sc.insertAdjacentHTML('beforeend',`<span>${st.scale.hi}</span>`);
+    wrap.appendChild(name); wrap.appendChild(desc); wrap.appendChild(svg); wrap.appendChild(sc);
+    stage.appendChild(wrap);
+  });
+  drawFlow();
+}
+
+function openOverlay(){
+  $('overlay').classList.add('on');
+  renderOverlay();
+}
+function closeOverlay(){ $('overlay').classList.remove('on'); }
+
+/* ---------- re-render ---------- */
+function renderAll(){
+  renderTokens(); renderQkv(); renderMlp(); renderAttn(); renderProbs(); updatePredStrip();
+}
+function updateControls(){
+  $('valLayer').textContent=layer; $('valHead').textContent=head;
+  $('valTemp').textContent=temp.toFixed(1);
+  $('sampName').textContent=sampType==='top-k'?'k':'p';
+  $('valSamp').textContent= sampType==='top-k'?sampVal:sampVal.toFixed(2);
+  $('inpSamp').min= sampType==='top-k'?1:5; $('inpSamp').max= sampType==='top-k'?50:95; $('inpSamp').step= sampType==='top-k'?1:5;
+  $('inpSamp').value= sampType==='top-k'?sampVal:Math.round(sampVal*100);
+  document.querySelectorAll('#segSamp button').forEach(b=>b.classList.toggle('on',b.dataset.t===sampType));
+  $('attnHead').title=lang==='zh'?'点击放大注意力矩阵':'click to expand attention';
+}
+function seedExamples(){
+  const sel=$('selExample');
+  D.forEach((d,i)=>{
+    const o=document.createElement('option');
+    o.value=i; o.textContent=`${d.prompt}…`;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change',()=>{
+    ex=+sel.value; layer=0; head=0; selToken=0; flowSel=0;
+    predicted = D[ex].sampled ? {tokenId:D[ex].sampled.tokenId, token:D[ex].sampled.token, rank:D[ex].sampled.rank} : null;
+    updateControls(); renderAll(); closeOverlay();
+  });
+}
+function setLang(l){
+  lang=l;
+  const dict=I18N[l];
+  document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(dict[k]!==undefined)el.textContent=dict[k];});
+  $('btnLang').textContent=l==='zh'?'EN':'中文';
+}
+
+/* ---------- init ---------- */
+window.addEventListener('DOMContentLoaded',()=>{
+  seedExamples();
+  predicted = D[ex].sampled ? {tokenId:D[ex].sampled.tokenId, token:D[ex].sampled.token, rank:D[ex].sampled.rank} : null;
+  updateControls(); renderAll();
+
+  $('inpLayer').addEventListener('input',e=>{layer=+e.target.value;updateControls();renderAttn();});
+  $('inpHead').addEventListener('input',e=>{head=+e.target.value;updateControls();renderQkv();renderAttn();});
+  $('inpTemp').addEventListener('input',e=>{temp=e.target.value/100;updateControls();renderProbs();});
+  $('inpSamp').addEventListener('input',e=>{
+    const v=+e.target.value;
+    sampVal= sampType==='top-k'?v:v/100;
+    updateControls(); renderProbs();
+  });
+  document.querySelectorAll('#segSamp button').forEach(b=>b.addEventListener('click',()=>{
+    sampType=b.dataset.t;
+    sampVal= sampType==='top-k'?5:0.5;
+    updateControls(); renderProbs();
+  }));
+  $('btnGenerate').addEventListener('click',()=>{
+    const probs=computeProbs();
+    const s=sample(probs);
+    predicted={tokenId:s.tokenId, token:s.token, rank:s.rank};
+    updatePredStrip(); renderProbs();
+  });
+  $('attnHead').addEventListener('click',openOverlay);
+  $('ovClose').addEventListener('click',closeOverlay);
+  $('overlay').addEventListener('click',(e)=>{ if(e.target===$('overlay')) closeOverlay(); });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeOverlay(); });
+  $('btnLang').addEventListener('click',()=>setLang(lang==='zh'?'en':'zh'));
+
+  // initial row height: compute from token count so matrix aligns nicely
+  const nn=n();
+  document.documentElement.style.setProperty('--rowH', (Math.min(72, Math.max(40, Math.floor((window.innerHeight-170)/nn)))+'px'));
+  window.addEventListener('resize',()=>{
+    document.documentElement.style.setProperty('--rowH', (Math.min(72, Math.max(40, Math.floor((window.innerHeight-170)/n())))+'px'));
+    renderAll();
+  });
+});
+
+/* keep reference to current stage for cell color tooltips */
+$('attnSvg').dataset.stage='softmax';
+</script>
+</body>
+</html>
