@@ -48,8 +48,22 @@ const llmSidebar: SidebarItem[] = [
         ],
       },
       { to: '/pd-separation', label: 'P/D 分离' },
-      { to: '/serving-scheduler', label: '服务调度' },
-      { to: '/router', label: 'AIBrix' },
+      {
+        label: '服务调度',
+        children: [
+          { to: '/serving-scheduler', label: '概览' },
+          { to: '/vllm-scheduler', label: 'vLLM 调度' },
+          { to: '/sglang-scheduler', label: 'SGLang 调度' },
+        ],
+      },
+      {
+        label: '调度器',
+        children: [
+          { to: '/router', label: 'AIBrix' },
+          { to: '/sglang-gateway', label: 'SGLang Model Gateway' },
+          { to: '/vllm-router', label: 'vLLM Router' },
+        ],
+      },
       {
         label: 'Mooncake',
         children: [
@@ -154,7 +168,7 @@ export function Layout() {
   const { isLoggedIn, username, logout } = useAuth();
 
   // 折叠/展开状态：默认全部折叠
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 'vLLM': true, '框架专题': true, 'KV Cache': true, 'KV Pool': true, 'Mooncake': true, '训练框架': true, '模型可视化': true });
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 'vLLM': true, '框架专题': true, 'KV Cache': true, 'KV Pool': true, '服务调度': true, '调度器': true, 'Mooncake': true, '训练框架': true, '模型可视化': true });
 
   // 左侧边栏和右侧目录栏的显隐状态
   const [sidebarHidden, setSidebarHidden] = useState(false);

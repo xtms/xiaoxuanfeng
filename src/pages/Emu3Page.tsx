@@ -1,5 +1,5 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
-import { CodeBlock, Callout, ResourceTable } from '../components/CodeBlock';
+import { CodeBlock, Callout } from '../components/CodeBlock';
 
 const GH = 'https://github.com/baaivision/Emu3/blob/main';
 

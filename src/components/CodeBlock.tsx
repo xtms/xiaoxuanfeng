@@ -60,12 +60,12 @@ export function CodeBlock({ code, language, title }: Props) {
   );
 }
 
-export function Callout({ type, children }: { type: 'info' | 'warning' | 'tip' | 'danger'; children: React.ReactNode }) {
+export function Callout({ type, title, children }: { type: 'info' | 'warning' | 'tip' | 'danger'; title?: string; children: React.ReactNode }) {
   const icons = { info: '💡', warning: '⚠️', tip: '✅', danger: '🚫' };
   const titles = { info: '信息', warning: '注意', tip: '提示', danger: '警告' };
   return (
     <div className={`callout callout-${type}`}>
-      <div className="callout-title">{icons[type]} {titles[type]}</div>
+      <div className="callout-title">{icons[type]} {title ?? titles[type]}</div>
       <div>{children}</div>
     </div>
   );

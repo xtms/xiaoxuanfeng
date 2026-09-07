@@ -511,14 +511,14 @@ graph TB
       <h2>集成生态</h2>
       <ResourceTable
         resources={[
-          { type: '论文', title: 'Mooncake (FAST 2025 Best Paper)', url: 'https://www.usenix.org/system/files/fast25-qin.pdf', desc: 'KVCache-centric Disaggregated Architecture for LLM Serving' },
-          { type: '论文', title: 'Mooncake 技术报告 (v2)', url: 'https://arxiv.org/abs/2504.17734', desc: '最新技术报告，涵盖 Transfer Engine + Store + EP' },
-          { type: '文档', title: 'Mooncake 官方文档', url: 'https://kvcache-ai.github.io/Mooncake/', desc: '完整 API 文档与部署指南' },
-          { type: '文档', title: 'vLLM Mooncake Store 集成', url: 'https://vllm.ai/blog/2026-05-06-mooncake-store', desc: 'vLLM 分布式 KV Cache 池化' },
-          { type: '文档', title: 'SGLang HiCache 集成', url: 'https://lmsys.org/blog/2025-09-10-sglang-hicache/', desc: 'SGLang 多级 KV Cache 存储' },
-          { type: '源码', title: 'mooncake-transfer-engine', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-transfer-engine', desc: '核心传输引擎' },
-          { type: '源码', title: 'mooncake-store', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-store', desc: '分布式 KV 存储引擎' },
-          { type: '源码', title: 'mooncake-integration', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-integration', desc: 'Python 绑定与框架集成层' },
+          { name: '论文：Mooncake (FAST 2025 Best Paper)', url: 'https://www.usenix.org/system/files/fast25-qin.pdf', desc: 'KVCache-centric Disaggregated Architecture for LLM Serving' },
+          { name: '论文：Mooncake 技术报告 (v2)', url: 'https://arxiv.org/abs/2504.17734', desc: '最新技术报告，涵盖 Transfer Engine + Store + EP' },
+          { name: '文档：Mooncake 官方文档', url: 'https://kvcache-ai.github.io/Mooncake/', desc: '完整 API 文档与部署指南' },
+          { name: '文档：vLLM Mooncake Store 集成', url: 'https://vllm.ai/blog/2026-05-06-mooncake-store', desc: 'vLLM 分布式 KV Cache 池化' },
+          { name: '文档：SGLang HiCache 集成', url: 'https://lmsys.org/blog/2025-09-10-sglang-hicache/', desc: 'SGLang 多级 KV Cache 存储' },
+          { name: '源码：mooncake-transfer-engine', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-transfer-engine', desc: '核心传输引擎' },
+          { name: '源码：mooncake-store', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-store', desc: '分布式 KV 存储引擎' },
+          { name: '源码：mooncake-integration', url: 'https://github.com/kvcache-ai/Mooncake/tree/main/mooncake-integration', desc: 'Python 绑定与框架集成层' },
         ]}
       />
     </div>

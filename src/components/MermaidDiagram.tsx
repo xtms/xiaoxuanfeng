@@ -4,6 +4,8 @@ interface Props {
   chart: string;
   className?: string;
   maxWidth?: number | string;
+  /** 静态缩小比例（如 0.7 = 缩小 30%），作用于整张图并保留对应布局空间 */
+  scale?: number;
 }
 
 let mermaidInitialized = false;
@@ -35,7 +37,7 @@ async function loadMermaid() {
   return mermaid;
 }
 
-export function MermaidDiagram({ chart, className, maxWidth }: Props) {
+export function MermaidDiagram({ chart, className, maxWidth, scale: scaleProp }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgWrapperRef = useRef<HTMLDivElement>(null);
   const id = useRef(`mermaid-${Math.random().toString(36).slice(2)}`);
@@ -44,6 +46,9 @@ export function MermaidDiagram({ chart, className, maxWidth }: Props) {
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
   const [loading, setLoading] = useState(true);
+  // 静态缩小：将 SVG 宽度直接设为 baseW×scale（mermaid 的 SVG width 属性是 "100%"，
+  // 真实像素尺寸在 viewBox 里，故先用 100% 布局宽度作基准）
+  const [shrunk, setShrunk] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -69,6 +74,19 @@ export function MermaidDiagram({ chart, className, maxWidth }: Props) {
           svgEl.style.maxWidth = 'none';
           svgEl.style.height = 'auto';
         }
+        // 静态缩小：以当前 100% 布局宽度为基准，把 SVG 宽度覆盖为 baseW×scale
+        if (svgEl && scaleProp && scaleProp !== 1) {
+          const baseW = svgEl.getBoundingClientRect().width;
+          if (baseW > 0) {
+            svgEl.style.width = `${baseW * scaleProp}px`;
+            svgEl.style.height = 'auto';
+            setShrunk(true);
+          } else {
+            setShrunk(false);
+          }
+        } else {
+          setShrunk(false);
+        }
       }
       setScale(1);
       setPan({ x: 0, y: 0 });
@@ -81,7 +99,7 @@ export function MermaidDiagram({ chart, className, maxWidth }: Props) {
     });
 
     return () => { cancelled = true; };
-  }, [chart]);
+  }, [chart, scaleProp]);
 
   const applyTransform = useCallback(() => {
     if (!svgWrapperRef.current) return;
@@ -155,7 +173,12 @@ export function MermaidDiagram({ chart, className, maxWidth }: Props) {
           margin: '20px 0',
         }}
       >
-        <div ref={svgWrapperRef} style={{ display: 'inline-block', minWidth: '100%' }} />
+        <div ref={svgWrapperRef} style={{
+          display: shrunk ? 'flex' : 'inline-block',
+          justifyContent: shrunk ? 'center' : undefined,
+          alignItems: shrunk ? 'flex-start' : undefined,
+          minWidth: '100%',
+        }} />
         {loading && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',

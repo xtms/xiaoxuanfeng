@@ -1,5 +1,5 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
-import { CodeBlock, Callout, ResourceTable } from '../components/CodeBlock';
+import { Callout } from '../components/CodeBlock';
 
 const GH = 'https://github.com/OpenDriveLab/UniAD/blob/v2.0';
 

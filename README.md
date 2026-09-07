@@ -55,7 +55,11 @@ xiaoxuanfeng/
 │       ├── MooncakePage.tsx        # Mooncake 总览
 │       ├── PDSeparationPage.tsx    # P/D 分离
 │       ├── ServingSchedulerPage.tsx # 服务调度
+│       ├── VllmSchedulerPage.tsx    # vLLM 调度模块（V1 Scheduler）
+│       ├── SGLangSchedulerPage.tsx  # SGLang 调度模块（Radix Cache 调度器）
 │       ├── RouterPage.tsx          # AIBrix 服务调度器
+│       ├── SGLangGatewayPage.tsx   # SGLang Model Gateway — 纯 Rust 调度网关
+│       ├── VllmRouterPage.tsx      # vLLM Router — vLLM 版调度网关（fork）
 │       ├── AutoDriveHomePage.tsx   # 自动驾驶首页 — 8 大训练框架卡片 + 学习路径
 │       ├── AutoDriveOverviewPage.tsx # 自动驾驶总体架构
 │       ├── VoyagerPage.tsx         # Voyager — NVIDIA 端到端自动驾驶框架
@@ -99,7 +103,13 @@ SGLang
 │   └── Ascend MemCache
 ├── P/D 分离
 ├── 服务调度
-├── AIBrix
+│   ├── 概览
+│   ├── vLLM 调度
+│   └── SGLang 调度
+├── 调度器
+│   ├── AIBrix
+│   ├── SGLang Model Gateway
+│   └── vLLM Router
 └── Mooncake
     ├── 概览
     └── KVPool (HIXL)
@@ -159,8 +169,12 @@ InfraTech
 | **Mooncake KVPool** | HIXL Engine 详解、UB 协议、LLM-DataDist V2、多链路拓扑、FabricMem、vllm-ascend 部署 |
 | **Ascend MemCache** | MetaService + LocalService 架构、MemFabric OneCopy、7 种硬件路径、KV Block API、vllm-ascend 集成 |
 | **P/D 分离** | Prefill/Decode 解耦原理、KV Cache 传输（NCCL/RDMA/Mooncake）、调度策略、vLLM/SGLang/Mooncake 实现对比 |
-| **服务调度** | Continuous Batching、Chunked Prefill、抢占策略、前缀感知调度、公平性调度 |
-| **AIBrix** | sgl-router（缓存感知路由）、LiteLLM、Triton、TGI Router、Nginx/Envoy 代理 |
+| **服务调度** | vLLM 与 SGLang 调度模块对照分析（概览层）：六大共同点（迭代级 Continuous Batching / Token Budget + Chunked Prefill / 前缀缓存深度集成 / 抢占 + 缓存恢复 / 优先级调度 / 调度与执行重叠）+ 七大差异点（进程模型 / Block Hash vs Radix Tree / 2 种 vs 6 种策略 / 抢占机制 / 固定 vs 动态 Token 预算 / prefill-decode 共存 / 可观测与路由联动）+ 综合对比表 + 选型建议，26 处 SrcLink（vLLM + SGLang 双源） |
+| **vLLM 调度** | vLLM V1 Scheduler：单轮 schedule() 三步主循环、双等待队列、Token Budget 切片式 Chunked Prefill、regenerate 式抢占、前缀缓存三层架构（KVCacheManager→Coordinator→BlockPool）、FCFS/PRIORITY 策略、AsyncScheduler placeholder 流水线化调度，Pi-0.5 粒度 + 26 处 SrcLink |
+| **SGLang 调度** | SGLang Scheduler：单线程 polling 事件循环 + GPU/CPU overlap、get_next_batch_to_run 决策、PrefillAdder token 预算管家、Radix Cache 前缀树（lock_ref 保护 / LRU-LFU 驱逐）、cache-aware 策略（LPM/DFS-Weight/ROUTING_KEY）、retract_decode 抢占、mixed chunk 混合前向、scheduler_components 20+ 子组件，Pi-0.5 粒度 + 28 处 SrcLink |
+| **AIBrix** | K8s 控制平面 + Envoy 数据面、多策略加权路由、PodAutoscaler、ModelRouter、KV Cache 管理、P/D 分离路由、StormService |
+| **SGLang Model Gateway** | 纯 Rust 调度网关（63K 行）、控制面+数据面、7 种负载均衡策略、Radix 前缀树、PD 路由器、gRPC 管线、OpenAI 路由 + MCP、可靠性/可观测性，与 AIBrix 合并对比 |
+| **vLLM Router** | vLLM 版调度网关（36K 行 Rust，SGLang Model Gateway 官方 fork）：fork 差异总览、双入口（Rust bin + PyO3）、6 种负载均衡策略（含新增 rendezvous_hash）、vLLM 两阶段 P/D 路由（NIXL/Mooncake/MoRI-IO 三种 KV Connector + logprobs 合并 + 响应存储）、ZMQ + K8s 双通道服务发现、OpenAI 后端代理、IGW 多路由器、OTel 可观测性、多后端 tokenizer，与母体/AIBrix 三方对比 |
 | **Mooncake 概览** | KVCache-Centric 架构、Master Server + Transfer Engine 核心组件、请求生命周期、P/D 分离核心作用（拓扑感知配对、多轮对话优化、故障恢复）、Layer-wise Pipeline、去重传输、两种传输引擎对比（Transfer Engine vs HIXL Engine） |
 
 ### 训练框架分析（Pi-0.5 粒度 · 代码级）
@@ -201,6 +215,7 @@ InfraTech
 | 模块 | vLLM | vLLM-Ascend | nano-vLLM | SGLang |
 |------|------|-------------|-----------|--------|
 | 调度器 (Scheduler) | ✅ | ✅ (继承) | ✅ (FCFS/SJF/优先级) | ✅ (零开销) |
+| 调度模块源码分析 | ✅ 服务调度/vllm-scheduler（V1 三步主循环 + AsyncScheduler） | — | — | ✅ 服务调度/sglang-scheduler（Radix 调度器 + PrefillAdder） |
 | KV Cache 管理 | ✅ PagedAttention | ✅ (继承) | ✅ PagedAttention | ✅ RadixAttention |
 | 内存管理 (BlockManager) | ✅ | ✅ | ✅ | — |
 | 模型执行 (ModelRunner) | ✅ | ✅ | ✅ | — |
@@ -241,7 +256,11 @@ InfraTech
 | `/memcache` | Ascend MemCache |
 | `/pd-separation` | P/D 分离 |
 | `/serving-scheduler` | 服务调度 |
+| `/vllm-scheduler` | vLLM 调度模块 |
+| `/sglang-scheduler` | SGLang 调度模块 |
 | `/router` | AIBrix |
+| `/sglang-gateway` | SGLang Model Gateway |
+| `/vllm-router` | vLLM Router |
 | `/mooncake` | Mooncake 概览 |
 | `/attention-close-reading` | Attention (精读) |
 | `/attention-en` | Attention (论文-EN) |
@@ -291,6 +310,11 @@ InfraTech
 - **MTR 训练流程 / 编码器-解码器架构图**
 - **UniAD 六任务端到端架构图**
 - **Cosmos-Framework 仓库整体布局 / 三层配置系统图**
+- **vLLM V1 调度一次 step 生命周期图**
+- **SGLang 调度一次 iter 决策图 / PrefillAdder 预算决策图 / Radix Cache 驱逐流程图**
+- **vLLM RequestStatus 状态转移图**
+- **AsyncScheduler schedule/execute 重叠时序图**
+- **服务调度概览双引擎架构对照图（vLLM EngineCore 单进程 vs SGLang 独立调度进程）**
 
 ### 时序图 (Sequence Diagram)
 

@@ -17,7 +17,11 @@ import { VLLMQuickStartPage } from './pages/VLLMQuickStartPage';
 import { KVCachePage } from './pages/KVCachePage';
 import { PDSeparationPage } from './pages/PDSeparationPage';
 import { ServingSchedulerPage } from './pages/ServingSchedulerPage';
+import { VllmSchedulerPage } from './pages/VllmSchedulerPage';
+import { SGLangSchedulerPage } from './pages/SGLangSchedulerPage';
 import { RouterPage } from './pages/RouterPage';
+import { SGLangGatewayPage } from './pages/SGLangGatewayPage';
+import { VllmRouterPage } from './pages/VllmRouterPage';
 import { KVPoolPage } from './pages/KVPoolPage';
 import { MemCachePage } from './pages/MemCachePage';
 import { MooncakeKVPoolPage } from './pages/MooncakeKVPoolPage';
@@ -68,7 +72,11 @@ export default function App() {
             <Route path="/kv-cache" element={<KVCachePage />} />
             <Route path="/pd-separation" element={<PDSeparationPage />} />
             <Route path="/serving-scheduler" element={<ServingSchedulerPage />} />
+            <Route path="/vllm-scheduler" element={<VllmSchedulerPage />} />
+            <Route path="/sglang-scheduler" element={<SGLangSchedulerPage />} />
             <Route path="/router" element={<RouterPage />} />
+            <Route path="/sglang-gateway" element={<SGLangGatewayPage />} />
+            <Route path="/vllm-router" element={<VllmRouterPage />} />
             <Route path="/kv-pool" element={<KVPoolPage />} />
             <Route path="/memcache" element={<MemCachePage />} />
             <Route path="/mooncake-kvpool" element={<MooncakeKVPoolPage />} />
