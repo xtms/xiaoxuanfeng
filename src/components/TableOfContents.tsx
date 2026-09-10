@@ -8,7 +8,9 @@ interface TocItem {
 }
 
 function stripEmoji(text: string): string {
-  return text.replace(/[\p{Emoji_Presentation}\p{Emoji}\u{200d}\u{fe0f}]/gu, '').trim();
+  // 注意：\p{Emoji} 会命中 ASCII 数字（0-9 属于 Emoji 属性），会把 "0.1" 剥成 "."。
+  // 改用 \p{Emoji_Presentation} + 变体选择符，只剥真正以 emoji 形式呈现的字符。
+  return text.replace(/[\p{Emoji_Presentation}\u{200d}\u{fe0f}]/gu, '').trim();
 }
 
 export function TableOfContents() {
@@ -28,21 +30,39 @@ export function TableOfContents() {
       const id = `toc-${i}`;
       h.id = id;
       const level = h.tagName === 'H2' ? 2 : 3;
-      let number: string;
+      const raw = stripEmoji(h.textContent || '');
 
-      if (level === 2) {
-        h2Counter++;
-        h3Counter = 0;
-        number = String(h2Counter);
+      // 页内标题自带编号前缀时，目录直接采用该编号，保证右侧目录与页面编号一一对应。
+      // ① 复合编号（0.1 / 3.1 / 4.6.1…）；② 单级编号（1. / 2：…，限 1-2 位，避免误吞 "3D"/"2024"）
+      const m = raw.match(/^(\d+(?:\.\d+)+)\s*[：:]?\s*(.*)$/)
+        || raw.match(/^(\d{1,2})\s*[.、：:]\s*(.*)$/);
+      let number: string;
+      let text: string;
+
+      if (m) {
+        number = m[1];
+        text = m[2] || '';
+        // 用显式编号同步自动计数器：h2 "2." 之下的无编号 h3 应续为 "2.1 / 2.2"，
+        // 而不是从头按 "0.1" 数。
+        const parts = number.split('.');
+        h2Counter = parseInt(parts[0], 10) || 0;
+        h3Counter = parts.length >= 2 ? (parseInt(parts[1], 10) || 0) : 0;
       } else {
-        h3Counter++;
-        number = `${h2Counter}.${h3Counter}`;
+        if (level === 2) {
+          h2Counter++;
+          h3Counter = 0;
+          number = String(h2Counter);
+        } else {
+          h3Counter++;
+          number = `${h2Counter}.${h3Counter}`;
+        }
+        text = raw;
       }
 
       tocItems.push({
         id,
         number,
-        text: stripEmoji(h.textContent || ''),
+        text,
         level,
       });
     });

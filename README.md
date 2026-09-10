@@ -175,7 +175,7 @@ InfraTech
 | **AIBrix** | K8s 控制平面 + Envoy 数据面、多策略加权路由、PodAutoscaler、ModelRouter、KV Cache 管理、P/D 分离路由、StormService |
 | **SGLang Model Gateway** | 纯 Rust 调度网关（63K 行）、控制面+数据面、7 种负载均衡策略、Radix 前缀树、PD 路由器、gRPC 管线、OpenAI 路由 + MCP、可靠性/可观测性，与 AIBrix 合并对比 |
 | **vLLM Router** | vLLM 版调度网关（36K 行 Rust，SGLang Model Gateway 官方 fork）：fork 差异总览、双入口（Rust bin + PyO3）、6 种负载均衡策略（含新增 rendezvous_hash）、vLLM 两阶段 P/D 路由（NIXL/Mooncake/MoRI-IO 三种 KV Connector + logprobs 合并 + 响应存储）、ZMQ + K8s 双通道服务发现、OpenAI 后端代理、IGW 多路由器、OTel 可观测性、多后端 tokenizer，与母体/AIBrix 三方对比 |
-| **Mooncake 概览** | KVCache-Centric 架构、Master Server + Transfer Engine 核心组件、请求生命周期、P/D 分离核心作用（拓扑感知配对、多轮对话优化、故障恢复）、Layer-wise Pipeline、去重传输、两种传输引擎对比（Transfer Engine vs HIXL Engine） |
+| **Mooncake 概览** | KVCache-Centric 分离式推理，概览（六句话速懂 + 双路径部署池化 vs 非池化 + 关键指标）+ 三面分离（元数据面/存储面/传输面）：缓存池化（Segment 挂载 + CacheLib/Offset 双分配器 + RANDOM/FREE_RATIO_FIRST/CXL 分配策略 + Ranked 采样 kCandidateMultiplier=6 + 两阶段 Put/Get + 读租约）、缓存管理（0.90 水位触发 EvictionThreadFunc + BatchEvict 并行普查按租约截止排序 + 软钉 30min/硬钉保护 + 组驱逐 + offload/promotion 换出换入）、P/D 分离数据同步（vllm_v1_proxy 两阶段代理 kv_transfer_params 邮包 + MooncakeConnector TE 直传 + MooncakeStoreConnector XpYd 池化 + PG credit-ack 数据面）、**非池化场景专题（§4.6：控制面 pull + 数据面 push，KV Cache 存取全流程——业务流程图 + 全流程时序图 + register_kv_caches/batch_register_memory 注册 → ZMQ MooncakeAgentMetadata 通知 → send_kv_to_decode/_build_transfer_params 地址换算 → batch_transfer_sync_write RDMA 直写 → TRANS_DONE 回执 → request_finished 延迟释放，含部分前缀命中/TP 分片/超时兜底/异常处理）**，Pi-0.5 粒度 + 44 处 SrcLink |
 
 ### 训练框架分析（Pi-0.5 粒度 · 代码级）
 
@@ -300,6 +300,7 @@ InfraTech
 - nano-vLLM-NPU 精简架构图
 - SGLang 整体架构图
 - Mooncake KVCache-Centric 架构图
+- **Mooncake 非池化 P/D 分离 KV Cache 存取业务流程图（§4.6，端到端业务视角）**
 - Mooncake 两种传输引擎架构图
 - HIXL + Mooncake 分层架构图
 - LLM-DataDist V2 架构图
@@ -323,6 +324,7 @@ InfraTech
 - vLLM-Ascend 请求处理时序图
 - SGLang RadixAttention 请求处理时序图
 - Mooncake P/D 分离全流程时序图（4 阶段）
+- **Mooncake 非池化 P/D 分离 KV Cache 存取全流程时序图（§4.6，组件 + 代码标注）**
 - Mooncake 多轮对话 P/D 优化时序图
 - HIXL 单边通信 vs 传统双边通信对比图
 - Transfer Engine GPU Direct RDMA 数据流图
