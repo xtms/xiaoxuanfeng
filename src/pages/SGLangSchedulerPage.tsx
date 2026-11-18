@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/sgl-project/sglang/blob/main';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function SGLangSchedulerPage() {
   return (
     <div className="prose max-w-none">
-      <h1>SGLang 调度模块 — Scheduler 源码分析</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 50 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 服务调度</span>
-      </div>
+      <PageHeader
+        title="SGLang 调度模块 — Scheduler 源码分析"
+        date="更新于 2026-09"
+        readingTime="阅读约 50 分钟"
+        tags={['专题', '服务调度']}
+      />
       <p>
         深入分析 SGLang 的调度模块：单线程 polling 事件循环 + 跨 GPU stream overlap、<code>get_next_batch_to_run</code> 的 prefill/decode 决策、
         <code>PrefillAdder</code> 的 token 预算管家、Radix Cache 前缀匹配与 LRU/LFU 驱逐、cache-aware 调度策略（LPM / DFS-Weight / FCFS / LOF）、

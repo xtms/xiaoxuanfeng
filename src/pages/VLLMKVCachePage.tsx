@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function VLLMKVCachePage() {
   return (
     <div className="prose max-w-none">
-      <h1>vLLM KV Cache 机制</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 25 分钟</span>
-        <span className="page-meta-item">🏷️ vLLM · KV Cache · P/D 分离</span>
-      </div>
+      <PageHeader
+        title="vLLM KV Cache 机制"
+        date="更新于 2026-09"
+        readingTime="阅读约 25 分钟"
+        tags={['vLLM', 'KV Cache', 'P/D 分离']}
+      />
       <p>
         vLLM 的 KV Cache 机制由 <strong>PagedAttention</strong>、<strong>KVConnector 抽象层</strong>、
         <strong>V1 调度器重构</strong> 三大支柱构成。其中 P/D 分离场景下的 KV 传输采用

@@ -22,6 +22,9 @@ function prepareContent(): HTMLElement | null {
 
   const clone = main.cloneNode(true) as HTMLElement;
 
+  // 移除界面工具元素（导出按钮等），避免出现在导出的文档里
+  clone.querySelectorAll('[data-export-exclude]').forEach((el) => el.remove());
+
   // 移除 Mermaid 的交互按钮（箭头等）
   clone.querySelectorAll('.mermaid svg').forEach((svg) => {
     svg.removeAttribute('style');
@@ -42,7 +45,8 @@ function prepareContent(): HTMLElement | null {
 function getPageTitle(): string {
   const h1 = document.querySelector('main h1');
   if (h1) {
-    return h1.textContent?.replace(/^[📖📊⚡🔌🧪🚀📋📚🔬📝🔍📖🎯💡🔧📌🎓🏗️]\s*/, '').trim() || '未命名';
+    // \p{Emoji_Presentation} 只匹配以 emoji 形式呈现的字符（不会误伤数字）
+    return h1.textContent?.replace(/^[\p{Emoji_Presentation}\u{200d}\u{fe0f}]+\s*/u, '').trim() || '未命名';
   }
   return document.title || '未命名';
 }

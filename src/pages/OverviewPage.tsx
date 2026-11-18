@@ -1,16 +1,17 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function OverviewPage() {
   return (
     <div className="prose max-w-none">
       {/* Page Header */}
-      <h1>总体架构概览</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 15 分钟</span>
-        <span className="page-meta-item">🏷️ 架构 · 对比</span>
-      </div>
+      <PageHeader
+        title="总体架构概览"
+        date="更新于 2026-08"
+        readingTime="阅读约 15 分钟"
+        tags={['架构', '对比']}
+      />
       <p>LLM 推理框架遵循相似的分层架构，但在关键模块的设计上各有创新。以下按框架逐一分析，再从整体维度横向对比。</p>
 
       {/* ==================== 1. 通用推理架构 ==================== */}

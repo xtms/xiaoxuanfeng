@@ -50,6 +50,27 @@ const knowledgeCards = [
     count: '5 篇',
     color: '#0891b2',
   },
+  {
+    to: '/llm-learning',
+    title: '推理框架学习资料',
+    desc: 'GitHub 权威仓库 + 必读论文，分门别类整理 vLLM/SGLang/DeepSeek 等框架学习资源',
+    count: '40+ 资源',
+    color: '#16a34a',
+  },
+  {
+    to: '/nanovllm2deepinfer',
+    title: 'nano-vLLM → DeepInfer',
+    desc: '34 节增量 PR 学习路线：从手写最小推理引擎逐步构建 DeepSeek 官方推理框架',
+    count: '34 节',
+    color: '#0d9488',
+  },
+  {
+    to: '/deepinfer/index',
+    title: 'DeepInfer 剖面',
+    desc: 'DeepInfer 中文源码导读：整机剖面、请求与调度、运行时异步、模型注意力、采样、性能、生产恢复、整机图谱 8 大专题',
+    count: '8 篇',
+    color: '#7c3aed',
+  },
 ];
 
 export function HomePage() {

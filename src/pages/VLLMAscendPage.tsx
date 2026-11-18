@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function VLLMAscendPage() {
   return (
     <div className="prose max-w-none">
-      <h1>vLLM-Ascend</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 25 分钟</span>
-        <span className="page-meta-item">🏷️ 硬件插件 · Ascend NPU · CANN</span>
-      </div>
+      <PageHeader
+        title="vLLM-Ascend"
+        date="更新于 2026-08"
+        readingTime="阅读约 25 分钟"
+        tags={['硬件插件', 'Ascend NPU', 'CANN']}
+      />
       <p>
         vLLM-Ascend 是 vLLM 的<strong>社区维护硬件插件</strong>，通过 vLLM 的硬件可插拔接口（RFC: Hardware Pluggable），
         将 vLLM 的推理能力带到华为 Ascend NPU。它使用 CANN（Compute Architecture for Neural Networks）替代 CUDA 工具链，

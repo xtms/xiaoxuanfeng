@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function RouterPage() {
   return (
     <div className="prose max-w-none">
-      <h1>AIBrix — 云原生 LLM 推理基础设施</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 35 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 服务调度器</span>
-      </div>
+      <PageHeader
+        title="AIBrix — 云原生 LLM 推理基础设施"
+        date="更新于 2026-09"
+        readingTime="阅读约 35 分钟"
+        tags={['专题', '服务调度器']}
+      />
       <p>
         <strong>AIBrix</strong> 是 vLLM 团队开源的云原生 LLM 推理基础设施平台，运行在 Kubernetes 之上，提供从<strong>流量路由、弹性伸缩、KV Cache 管理、P/D 分离</strong>到<strong>异构 GPU 调度</strong>的完整推理栈。项目基于 Go 语言实现，采用 Kubernetes Operator 模式，通过一系列 CRD 和控制器实现声明式管理。
       </p>

@@ -60,7 +60,11 @@
   --radius-lg: 12px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* 放入 @layer base，避免未分层规则压过 Tailwind 的 @layer utilities（如 px-12/py-12）和自定义规则。
+   CSS Cascade Layers 规范：未分层样式优先级高于任何分层样式，此前该 reset 把 .px-12 等全部覆盖为 padding:0。 */
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+}
 
 html { scroll-behavior: smooth; }
 
@@ -622,6 +626,24 @@ pre code {
   background: none;
 }
 
+/* 分组本身可点击时（如 mini-DeepInfer 教学引擎 → /deepinfer/mini）：标签跳转，▾ 折叠 */
+.sidebar-group-label {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+  display: block;
+}
+.sidebar-group-label:hover { color: var(--vp-sidebar-text-hover); }
+.sidebar-group-label.active {
+  color: var(--vp-c-brand);
+  font-weight: 600;
+}
+
 .sidebar-chevron {
   font-size: 0.6rem;
   transition: transform 0.2s ease;
@@ -717,23 +739,123 @@ pre code {
 
 .sidebar-toggle-btn {
   flex-shrink: 0;
-  width: 22px;
+  width: 26px;
   height: 100%;
   border: none;
   border-left: 1px solid var(--vp-sidebar-border);
-  background: transparent;
+  background: var(--vp-c-bg);
   color: var(--vp-sidebar-text);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.55rem;
-  transition: color 0.15s;
+  font-size: 0.7rem;
+  transition: background 0.15s, color 0.15s;
   padding: 0;
 }
 .sidebar-toggle-btn:hover {
   color: var(--vp-sidebar-text-hover);
   background: var(--vp-sidebar-hover);
+}
+.sidebar-toggle-btn:focus-visible {
+  outline: 2px solid var(--vp-c-brand);
+  outline-offset: -2px;
+}
+
+/* 站点标题 */
+.sidebar-brand {
+  padding: 14px 16px 8px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--vp-c-text-1);
+}
+
+/* 模块 Tab 切换 — 等宽 + 间距 + 独立圆角 + hover 反馈 */
+.sidebar-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--radius);
+}
+.sidebar-tab {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  border: none;
+  border-radius: calc(var(--radius) - 3px);
+  background: transparent;
+  color: var(--vp-c-text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.sidebar-tab:hover {
+  background: var(--vp-c-bg-alt);
+  color: var(--vp-c-text-1);
+}
+.sidebar-tab.active {
+  background: var(--vp-c-brand);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 侧边栏搜索框 */
+.sidebar-search {
+  width: 100%;
+  margin-top: 8px;
+  box-sizing: border-box;
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sidebar-search:focus {
+  border-color: var(--vp-c-brand);
+}
+.sidebar-search::placeholder {
+  color: var(--vp-c-text-3);
+}
+
+/* 搜索命中高亮 */
+.sidebar-match {
+  background: rgba(52, 81, 178, 0.18);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* 顶级项图标（区分层级，子链接不带图标） */
+.sidebar-icon {
+  display: inline-block;
+  width: 1.25em;
+  margin-right: 5px;
+  text-align: center;
+  font-size: 0.9em;
+}
+
+/* 包含活跃子项的分组标记 */
+.sidebar-group.active-parent {
+  color: var(--vp-c-brand);
+}
+.sidebar-group.active-parent .sidebar-group-label {
+  color: var(--vp-c-brand);
+  font-weight: 500;
+}
+
+/* 搜索无结果提示 */
+.sidebar-empty {
+  padding: 12px 16px;
+  font-size: 0.82rem;
+  color: var(--vp-c-text-3);
+  text-align: center;
 }
 
 .toc-toggle-btn {
@@ -777,6 +899,17 @@ pre code {
 /* ============================================================
    Export button
    ============================================================ */
+/* 导出工具栏 — 位于内容区右上角，滚动时固定。
+   height: 0 + overflow: visible 会让按钮浮在 H1 标题上重叠，改为实际高度 32px 正常占位。 */
+.export-toolbar {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  height: 32px;
+}
 .export-btn {
   display: inline-flex;
   align-items: center;

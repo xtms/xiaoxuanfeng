@@ -25,3 +25,5 @@ dist-ssr
 output/*
 dist/*
 handoff.md
+test-results/*
+scripts/*.png

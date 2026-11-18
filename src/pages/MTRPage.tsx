@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { CodeBlock, Callout } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/sshaoshuai/MTR/blob/master';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function MTRPage() {
   return (
     <div className="prose max-w-none">
-      <h1>MTR — 训练框架实现架构分析</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">🏷️ 自动驾驶 · 轨迹预测 · Waymo · Transformer</span>
-        <span className="page-meta-item">📖 源码分析</span>
-      </div>
+      <PageHeader
+        title="MTR — 训练框架实现架构分析"
+        date="更新于 2026-09"
+        tags={['自动驾驶', '轨迹预测', 'Waymo', 'Transformer']}
+        extra={[{ icon: '📖', text: '源码分析' }]}
+      />
       <p>
         Waymo 开源的 <strong>Motion Transformer（MTR）</strong>，基于 Transformer 架构的多模态轨迹预测框架，在 Waymo Open Motion Dataset 上取得 SOTA 性能。本文基于 <code>/data/sd/MTR</code> 源码，重点对齐 Pi-0.5 页面的<strong>代码级逐步分析粒度</strong>——每个关键点给出真实源码片段 + 逐行解释 + 文件路径。
       </p>

@@ -1,11 +1,12 @@
+import { PageHeader } from '../components/PageHeader';
 export function AutoDriveOverviewPage() {
   return (
     <div className="prose max-w-none">
-      <h1>自动驾驶 — 总体架构</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">🏷️ 自动驾驶 · 总体架构</span>
-      </div>
+      <PageHeader
+        title="自动驾驶 — 总体架构"
+        date="更新于 2026-09"
+        tags={['自动驾驶', '总体架构']}
+      />
       <p>端到端自动驾驶的核心范式演进：从传统模块化方案到端到端模仿学习、强化学习，再到 VLA（视觉-语言-行动）大模型架构。</p>
 
       <h2>核心范式</h2>

@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/vllm-project/vllm/blob/main';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function VllmSchedulerPage() {
   return (
     <div className="prose max-w-none">
-      <h1>vLLM V1 调度模块 — Scheduler 源码分析</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 45 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 服务调度</span>
-      </div>
+      <PageHeader
+        title="vLLM V1 调度模块 — Scheduler 源码分析"
+        date="更新于 2026-09"
+        readingTime="阅读约 45 分钟"
+        tags={['专题', '服务调度']}
+      />
       <p>
         深入分析 vLLM V1 引擎的调度模块：单轮 <code>schedule()</code> 主循环、双等待队列、Token Budget 控制的 Chunked Prefill、regenerate 式抢占、前缀缓存深度集成、Policy（FCFS/PRIORITY）与 <code>AsyncScheduler</code> 流水线化调度。本节按 <strong>Pi-0.5 粒度</strong>逐步分析——每个关键点附真实源码 + 逐行解释 + 可点击跳转 GitHub 的文件路径。源码基于本地克隆 <code>/data/sd/vllm</code>（仅含 V1 checkout）。
       </p>

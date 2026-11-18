@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/NVIDIA/cosmos-framework/blob/main';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function CosmosFrameworkPage() {
   return (
     <div className="prose max-w-none">
-      <h1>Cosmos-Framework — 训练框架实现架构分析</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">🏷️ NVIDIA · 世界模型 · 蒸馏 · FSDP · LoRA</span>
-        <span className="page-meta-item">📖 源码分析</span>
-      </div>
+      <PageHeader
+        title="Cosmos-Framework — 训练框架实现架构分析"
+        date="更新于 2026-09"
+        tags={['NVIDIA', '世界模型', '蒸馏', 'FSDP', 'LoRA']}
+        extra={[{ icon: '📖', text: '源码分析' }]}
+      />
       <p>
         NVIDIA 开源的 <strong>Cosmos-Framework</strong>，是 Cosmos 世界模型（T2V/I2V/V2V）与
         推理世界模型的<strong>训练/微调基础设施</strong>，版本 <code>1.2.2</code>。本文基于{' '}

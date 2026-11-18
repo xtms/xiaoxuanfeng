@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function NanoVLLMPage() {
   return (
     <div className="prose max-w-none">
-      <h1>nano-vLLM-NPU</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 15 分钟</span>
-        <span className="page-meta-item">🏷️ 精简引擎 · Ascend C · HashChain</span>
-      </div>
+      <PageHeader
+        title="nano-vLLM-NPU"
+        date="更新于 2026-08"
+        readingTime="阅读约 15 分钟"
+        tags={['精简引擎', 'Ascend C', 'HashChain']}
+      />
       <p>
         nano-vLLM-NPU 是一个<strong>独立精简重实现</strong>（非 fork）的 LLM 推理引擎，约 <strong>1,915 行</strong>、<strong>23 个 Python 文件</strong>。
         它独立重实现了 vLLM 的核心概念（分页 KV Cache、前缀缓存、张量并行、CUDA Graph、Chunked Prefill、Continuous Batching），

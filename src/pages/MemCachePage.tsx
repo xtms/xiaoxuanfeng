@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function MemCachePage() {
   return (
     <div className="prose max-w-none">
-      <h1>Ascend MemCache</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 30 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · KV Pool · Ascend</span>
-      </div>
+      <PageHeader
+        title="Ascend MemCache"
+        date="更新于 2026-08"
+        readingTime="阅读约 30 分钟"
+        tags={['专题', 'KV Pool', 'Ascend']}
+      />
       <p>MemCache 是华为 Ascend 开源的<strong>高性能分布式 KV Cache 存储引擎</strong>，专为 AI 推理场景设计。基于 MemFabric 实现跨机器、跨介质直访（OneCopy），已集成到 vllm-ascend、sglang 和 mindie 等推理框架。2025 年 11 月开源，基于 MulanPSL2 协议。</p>
 
       {/* ==================== 1. 总体架构 ==================== */}

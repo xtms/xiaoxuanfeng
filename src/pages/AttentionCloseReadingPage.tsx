@@ -1,15 +1,16 @@
 import { CodeBlock, Callout, ResourceTable } from '../components/CodeBlock';
 import { MermaidDiagram } from '../components/MermaidDiagram';
+import { PageHeader } from '../components/PageHeader';
 
 export function AttentionCloseReadingPage() {
   return (
     <div className="prose max-w-none">
-      <h1>Attention Is All You Need (Transformer) 论文精读</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 30 分钟</span>
-        <span className="page-meta-item">🏷️ 论文精读 · Attention · Transformer</span>
-      </div>
+      <PageHeader
+        title="Attention Is All You Need (Transformer) 论文精读"
+        date="更新于 2026-08"
+        readingTime="阅读约 30 分钟"
+        tags={['论文精读', 'Attention', 'Transformer']}
+      />
       <p>
         <strong>原文作者：</strong>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
         Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin

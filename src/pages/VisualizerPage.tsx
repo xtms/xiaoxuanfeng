@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { PageHeader } from '../components/PageHeader';
 
 interface VisualizerPageProps {
   title: string;
@@ -29,13 +30,7 @@ export function VisualizerPage({ title, src, desc, tags = [], hint }: Visualizer
 
   return (
     <div className="prose max-w-none">
-      <h1>{title}</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        {tags.length > 0 && (
-          <span className="page-meta-item">🏷️ {tags.join(' · ')}</span>
-        )}
-      </div>
+      <PageHeader title={title} date="更新于 2026-09" tags={tags} />
       {desc && <p>{desc}</p>}
       {hint && (
         <p style={{ color: 'var(--vp-c-text-3)', fontSize: '0.9rem', marginTop: -6 }}>
@@ -50,7 +45,7 @@ export function VisualizerPage({ title, src, desc, tags = [], hint }: Visualizer
           ↗ 新标签页打开
         </a>
       </div>
-      <div className="glass-card" style={{ padding: 0, overflow: 'hidden', borderRadius: 'var(--radius)' }}>
+      <div className="glass-card" style={{ padding: 0, borderRadius: 'var(--radius)' }}>
         <iframe
           ref={frameRef}
           src={src}
@@ -58,8 +53,8 @@ export function VisualizerPage({ title, src, desc, tags = [], hint }: Visualizer
           style={{
             display: 'block',
             width: '100%',
-            height: 'calc(100vh - 260px)',
-            minHeight: 520,
+            height: 'calc(100vh - 200px)',
+            minHeight: 420,
             border: 'none',
             background: '#1a2333',
           }}

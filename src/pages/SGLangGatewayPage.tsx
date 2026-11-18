@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/sgl-project/sglang/blob/main/sgl-model-gateway';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function SGLangGatewayPage() {
   return (
     <div className="prose max-w-none">
-      <h1>SGLang Model Gateway — 纯 Rust 模型调度与数据面网关</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 45 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 调度器</span>
-      </div>
+      <PageHeader
+        title="SGLang Model Gateway — 纯 Rust 模型调度与数据面网关"
+        date="更新于 2026-09"
+        readingTime="阅读约 45 分钟"
+        tags={['专题', '调度器']}
+      />
       <p>
         <strong>SGLang Model Gateway</strong> 是 SGLang 项目以 Rust 从零实现的高性能推理网关（63K 行），
         同时承担 <strong>控制平面</strong>（worker 注册/健康检查/服务发现）与 <strong>数据面</strong>（HTTP / PD / gRPC / OpenAI

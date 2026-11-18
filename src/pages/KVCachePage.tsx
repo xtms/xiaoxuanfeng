@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function KVCachePage() {
   return (
     <div className="prose max-w-none">
-      <h1>KV Cache</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 20 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 核心机制</span>
-      </div>
+      <PageHeader
+        title="KV Cache"
+        date="更新于 2026-08"
+        readingTime="阅读约 20 分钟"
+        tags={['专题', '核心机制']}
+      />
       <p>KV Cache 是 LLM 推理最核心的优化技术之一。本文将系统梳理 KV Cache 的数学原理、四种主流管理方案、内存计算与优化策略，以及多框架中的实现对比。</p>
 
       {/* ==================== 1. 数学原理 ==================== */}

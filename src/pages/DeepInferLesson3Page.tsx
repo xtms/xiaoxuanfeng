@@ -1,0 +1,251 @@
+import { Callout, CodeBlock } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
+
+const DOC = 'https://github.com/AkiYangDev/mini-deepinfer/blob/main/docs';
+const SRC = 'https://github.com/AkiYangDev/mini-deepinfer/blob/main/minideepinfer';
+
+export function DeepInferLesson3Page() {
+  return (
+    <div className="prose max-w-none">
+      <PageHeader
+        title="第三课：让请求进入和离开批次"
+        date="更新于 2026-10"
+        readingTime="阅读约 8 分钟"
+        tags={['批处理', 'BatchEngine', 'attention mask', '分块 prefill']}
+      />
+
+      <p>
+        <a href="/deepinfer/mini">十四课目录</a> ·{' '}
+        <a href={`${DOC}/SOURCE_MAP.md`} target="_blank" rel="noreferrer">源码映射</a>
+      </p>
+
+      <p>
+        本课保留同步批次基线。分开发起计算与提交结果、计算途中取消的实现，
+        接着看<a href="/deepinfer/lesson/8">第八课</a>。
+      </p>
+
+      <p>
+        单请求时，Engine 每轮只推进一个请求。现在 A、B 同时执行，A 先结束，C 随后进入：
+        下一轮的执行成员就从 <code>[A, B]</code> 变成了 <code>[B, C]</code>。
+        我们需要保持 B 的进度，把 A 的槽位交给 C，并将每一行模型输出交还给正确的请求。
+      </p>
+
+      {/* ==================== 先看执行轨迹 ==================== */}
+      <div className="section-divider"><span>先看执行轨迹</span></div>
+
+      <p>Python 3.10+，无需模型或依赖：</p>
+
+      <CodeBlock
+        language="bash"
+        code={`python -m minideepinfer.batch_demo`}
+      />
+
+      <p>其中三轮分别是：</p>
+
+      <CodeBlock
+        language="text"
+        code={`batch: req-0/prefill, req-1/prefill
+batch: req-1/decode, req-2/prefill
+batch: req-1/decode, req-2/decode
+...
+Free slots: 10/10`}
+      />
+
+      <p>
+        第一轮 req-0 只生成一个 token 就结束。第二轮 req-2 用它释放的槽位进行 prefill，
+        req-1 同时继续 decode。演示中的 Runner 仍是整数模拟；真实模型的计算方式如下。
+      </p>
+
+      {/* ==================== 调度这一轮的输入 ==================== */}
+      <div className="section-divider"><span>调度这一轮的输入</span></div>
+
+      <p>
+        <a href={`${SRC}/batch_engine.py`} target="_blank" rel="noreferrer"><code>BatchEngine</code></a>{' '}
+        与第一课的 Engine 共用请求结构和提交校验，保留独立执行循环，方便对照阅读。
+      </p>
+
+      <p>
+        每轮先为已有运行请求各保留一个 decode token 的计算预算，再按 FIFO 接纳新请求。
+        <code>max_num_seqs</code> 限制运行请求数，<code>max_num_batched_tokens</code> 限制本轮输入 token 总数，
+        后者必须至少等于前者。
+      </p>
+
+      <p>
+        默认每个新请求一次性计算完整 prompt，并预留 <code>{'prompt长度 + max_new_tokens - 1'}</code>{' '}
+        个 KV 槽位。队头暂时放不下时，后面的新请求也等待，已有 decode 继续推进。
+        默认模式会拒绝超过总 token 预算的单个 prompt；开启下面的分块模式后，可以用剩余预算分轮完成。
+        这里没有抢占或共享前缀。
+      </p>
+
+      <p>
+        <code>_schedule()</code> 返回有序的 <code>{'tuple[Step, ...]'}</code>。
+        每个 Step 的绝对位置从自己的请求计算，不能用拼接后 token 在大张量中的下标代替。
+      </p>
+
+      {/* ==================== 合并计算，隔开 attention ==================== */}
+      <div className="section-divider"><span>合并计算，隔开 attention</span></div>
+
+      <p>
+        <a href={`${SRC}/model_runner.py`} target="_blank" rel="noreferrer"><code>ModelRunner.prepare_batch()</code></a>{' '}
+        将各 Step 的输入拼接成一个 token 维度。线性层、归一化和 MLP 在整个张量上执行；
+        一轮只调用一次模型。每个请求在 K/V 张量中仍有独立的槽位。
+      </p>
+
+      <p>
+        attention 同时遵守两条规则：query 只能看同一请求的 key，并且 key 的绝对位置不能晚于 query。
+        例如输入是 <code>[A0, A1, B0]</code>，允许读取的位置是：
+      </p>
+
+      <table className="my-5">
+        <thead>
+          <tr>
+            <th>query / key</th>
+            <th>A0</th>
+            <th>A1</th>
+            <th>B0</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>A0</td><td>是</td><td>否</td><td>否</td></tr>
+          <tr><td>A1</td><td>是</td><td>是</td><td>否</td></tr>
+          <tr><td>B0</td><td>否</td><td>否</td><td>是</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        代码里的布尔 mask 用 <code>True</code> 表示屏蔽，与表中"允许"相反。
+        decode 的 query 只有一个新 token，key 则包含该请求此前的全部上下文。
+      </p>
+
+      <p>
+        这是短上下文的参考路径：分数矩阵大小为{' '}
+        <code>{'所有query数 × 所有key数'}</code>，包括随后被 mask 掉的跨请求项。
+        它展示真正合并的模型计算，但不是高效 varlen 或 paged attention 实现，
+        也没有由此获得提速的测量结论。
+      </p>
+
+      {/* ==================== 长 prompt 分块执行 ==================== */}
+      <div className="section-divider"><span>长 prompt 分块执行</span></div>
+
+      <p>
+        <code>BatchEngine(..., chunked_prefill=True)</code> 开启按预算切分。
+        每轮先给已有 decode 各分配一个 token，再用剩余预算推进未完成的 prompt；
+        完整 prompt 仍需放得进总 KV 容量。
+      </p>
+
+      <p>
+        例如 prompt 有 5 个 token、每轮预算为 2，prefill 分成 <code>[2, 2, 1]</code>。
+        前两轮只写 K/V 并提交 <code>num_cached_tokens</code>，输出事件的 <code>token_id</code> 是{' '}
+        <code>None</code>，<code>output_ids</code> 保持空。
+        最后一轮的 <code>is_last_prompt_chunk=True</code>，此时才选择首个输出 token。
+        中间块不会提前触发 EOS 或消耗输出长度上限。
+      </p>
+
+      <p>
+        Runner 记录前缀是否已完成 prompt，拒绝跳过中间块、重启已完成 prefill 或过早切换 decode。
+        取消未完成的 prompt 会回收槽位和前缀记录，新请求可以复用。
+      </p>
+
+      <p>
+        真实生成命令增加 <code>--chunked-prefill</code>，再通过 <code>--max-batched-tokens</code>{' '}
+        设置本轮预算。例如在下面的双请求命令中，把预算从 32 改成 2 并加上该开关，
+        即可观察相同输出通过更多 prefill 轮完成。当前实现仍计算中间块的 logits，只是不采样；
+        降低 LM head 的额外计算可以作为后续独立优化。
+      </p>
+
+      <p>数值对照复用已有脚本，加入块大小参数：</p>
+
+      <CodeBlock
+        language="bash"
+        code={`python -m minideepinfer.verify \\
+  --model weights/DeepSeek-R1-Distill-Qwen-1.5B \\
+  --device cpu --dtype float32 --prefill-chunk-size 2 \\
+  --output outputs/chunked-cpu.json`}
+      />
+
+      {/* ==================== 统一提交与回收 ==================== */}
+      <div className="section-divider"><span>统一提交与回收</span></div>
+
+      <p>
+        Runner 按调度顺序取每个请求的最后一行 logits，greedy 选择 token，一次传回主机。
+        Engine 先检查输出数量和类型，再提交整批请求的进度。
+      </p>
+
+      <p>
+        一项输出无效或模型抛错时，本轮所有已调度请求都失败，本轮没有部分输出提交；
+        等待队列保留。Runner 必须在返回或抛错前完成设备工作，Engine 才能释放槽位。
+        当前只能在同一线程、两轮之间调用取消。
+      </p>
+
+      <p>
+        请求正常结束或取消后，Engine 还会调用 <code>Runner.release()</code>{' '}
+        删除按请求保存的前缀记录。K/V 张量中的旧数据不必清零，新请求 prefill 会写入自己的输入；
+        已经释放的前缀不能再用于 decode。
+      </p>
+
+      {/* ==================== 运行多个真实请求 ==================== */}
+      <div className="section-divider"><span>运行多个真实请求</span></div>
+
+      <p>按第二课准备环境和权重，重复传入 <code>--prompt</code>：</p>
+
+      <CodeBlock
+        language="bash"
+        code={`python -m minideepinfer.generate \\
+  --model weights/DeepSeek-R1-Distill-Qwen-1.5B \\
+  --device cpu --dtype float32 --raw \\
+  --prompt "The capital of France is" --prompt "A KV cache" \\
+  --max-new-tokens 16 --cache-capacity 128 \\
+  --max-num-seqs 2 --max-batched-tokens 32`}
+      />
+
+      <p>
+        默认只有一个 prompt 时使用第一课的 Engine，多个 prompt 或开启分块时使用 BatchEngine。
+        文本在整轮执行结束后打印，不是流式服务。比较固定 token 的 logits：
+      </p>
+
+      <CodeBlock
+        language="bash"
+        code={`python -m minideepinfer.verify_batch \\
+  --model weights/DeepSeek-R1-Distill-Qwen-1.5B \\
+  --device cpu --dtype float32 --output outputs/batch-cpu.json`}
+      />
+
+      <p>
+        测试覆盖混合 prefill/decode、请求顺序变化、脏槽位复用、取消、预算与缓存不足、
+        异常和批次内的数值隔离。真实权重与目标设备的完成情况以{' '}
+        <a href={`${DOC}/VALIDATION.md`} target="_blank" rel="noreferrer">验证记录</a>为准。
+      </p>
+
+      <p>
+        验证脚本保留两种参考：独立请求，以及按相同批次与缓存顺序执行的 Transformers 模型。
+        后者通过仅调整存储顺序的 <code>DynamicCache</code> 适配器实现，mask 也单独构造。
+        相同布局 FP32 使用 <code>atol=1e-4</code>，跨批次形状使用 <code>atol=2e-4</code>，
+        两者均为 <code>rtol=2e-4</code>；阈值依据、初次未通过记录和最终结果均在验证文档中，
+        避免用放宽容差掩盖布局错误。
+      </p>
+
+      {/* ==================== 对照 DeepInfer ==================== */}
+      <div className="section-divider"><span>对照 DeepInfer</span></div>
+
+      <Callout type="tip" title="对照 DeepInfer">
+        <p>
+          本课沿着原版的"调度输出与逐请求元数据 {'→'} worker 模型执行 {'→'} 按调度结果提交"组织代码，
+          入口见<a href={`${DOC}/SOURCE_MAP.md`} target="_blank" rel="noreferrer">源码映射</a>。
+          Python FIFO、全量预留、合并张量的显式 mask，以及在一批里混合 prefill/decode 都是教学选择，
+          不复现原版完整调度策略。
+        </p>
+        <p>
+          这里仍然每轮等待计算结束，再处理输出。
+          <a href="/deepinfer/lesson/5">第五课</a>用独立的手动事件实验解释上一轮结果尚未读完、
+          下一轮成员已经变化时的行号与资源归属；当前立即回收的约定不能直接搬到异步执行中。
+        </p>
+      </Callout>
+
+      <div className="flex gap-2 flex-wrap" style={{ marginTop: 24 }}>
+        <a href="/deepinfer/mini" className="no-underline">{'←'} 十四课目录</a>
+        <a href="/deepinfer/lesson/2" className="no-underline">{'←'} 上一课</a>
+        <a href="/deepinfer/lesson/4" className="no-underline">{'下一课 →'}</a>
+      </div>
+    </div>
+  );
+}

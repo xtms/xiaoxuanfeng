@@ -1,15 +1,16 @@
 import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
 import { MermaidDiagram } from '../components/MermaidDiagram';
+import { PageHeader } from '../components/PageHeader';
 
 export function AttentionENPage() {
   return (
     <div className="prose max-w-none">
-      <h1>Attention Is All You Need</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 25 分钟</span>
-        <span className="page-meta-item">🏷️ 论文原文 · Attention · 英文</span>
-      </div>
+      <PageHeader
+        title="Attention Is All You Need"
+        date="更新于 2026-08"
+        readingTime="阅读约 25 分钟"
+        tags={['论文原文', 'Attention', '英文']}
+      />
       <p>
         <strong>Authors:</strong> Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
         Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin (Google Brain &amp; Google Research)

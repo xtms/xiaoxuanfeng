@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { PageHeader } from '../components/PageHeader';
 
 const frameworks = [
   {
@@ -62,11 +63,11 @@ const frameworks = [
 export function AutoDriveHomePage() {
   return (
     <div className="prose max-w-none">
-      <h1>自动驾驶学习指南</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">🏷️ 自动驾驶 · 端到端 · VLA</span>
-      </div>
+      <PageHeader
+        title="自动驾驶学习指南"
+        date="更新于 2026-09"
+        tags={['自动驾驶', '端到端', 'VLA']}
+      />
       <p>深入理解端到端自动驾驶与具身智能训练框架，涵盖 Voyager、DriveVLA-W0、Emu3、Pi-0.5、π0、MTR、UniAD、Cosmos-Framework 等主流框架的架构设计、训练范式与实现原理。</p>
 
       {/* Stats */}

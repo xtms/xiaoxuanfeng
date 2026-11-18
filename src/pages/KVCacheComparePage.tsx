@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function KVCacheComparePage() {
   return (
     <div className="prose max-w-none">
-      <h1>SGLang vs vLLM KV Cache 机制对比</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 30 分钟</span>
-        <span className="page-meta-item">🏷️ 对比 · KV Cache · P/D 分离</span>
-      </div>
+      <PageHeader
+        title="SGLang vs vLLM KV Cache 机制对比"
+        date="更新于 2026-09"
+        readingTime="阅读约 30 分钟"
+        tags={['对比', 'KV Cache', 'P/D 分离']}
+      />
       <p>
         SGLang 和 vLLM 在 P/D 分离 KV Cache 传输上采用了<strong>截然不同的架构哲学</strong>：
         SGLang 使用 <strong>Push 模型</strong>（P 主动推送，D 被动接收），vLLM 使用 <strong>Connector 模型</strong>（P Save + D Load）。

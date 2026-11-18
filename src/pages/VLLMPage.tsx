@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function VLLMPage() {
   return (
     <div className="prose max-w-none">
-      <h1>vLLM</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 基于 releases/v0.23.0</span>
-        <span className="page-meta-item">⏱️ 阅读约 30 分钟</span>
-        <span className="page-meta-item">🏷️ 引擎 · 架构 · 调度</span>
-      </div>
+      <PageHeader
+        title="vLLM"
+        date="基于 releases/v0.23.0"
+        readingTime="阅读约 30 分钟"
+        tags={['引擎', '架构', '调度']}
+      />
       <p>
         vLLM 是 UC Berkeley Sky Computing Lab 开发的 LLM 推理引擎，以其 <strong>PagedAttention</strong> 创新闻名。
         它支持 200+ 模型架构，提供 OpenAI 兼容 API，是目前最流行的开源推理框架之一。

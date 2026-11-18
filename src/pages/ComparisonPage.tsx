@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function ComparisonPage() {
   return (
     <div className="prose max-w-none">
-      <h1>框架对比</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 10 分钟</span>
-        <span className="page-meta-item">🏷️ 对比 · 选型</span>
-      </div>
+      <PageHeader
+        title="框架对比"
+        date="更新于 2026-08"
+        readingTime="阅读约 10 分钟"
+        tags={['对比', '选型']}
+      />
       <p>从架构设计、KV Cache 管理、调度策略、硬件支持等多个维度进行横向对比。</p>
 
       <div className="section-divider"><span>综合对比</span></div>

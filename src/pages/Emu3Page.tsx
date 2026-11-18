@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { CodeBlock, Callout } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/baaivision/Emu3/blob/main';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function Emu3Page() {
   return (
     <div className="prose max-w-none">
-      <h1>Emu3 — 训练框架实现架构分析</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">🏷️ 自动驾驶 · 多模态 · 智源 · 大一统</span>
-        <span className="page-meta-item">📖 源码分析</span>
-      </div>
+      <PageHeader
+        title="Emu3 — 训练框架实现架构分析"
+        date="更新于 2026-09"
+        tags={['自动驾驶', '多模态', '智源', '大一统']}
+        extra={[{ icon: '📖', text: '源码分析' }]}
+      />
       <p>
         北京智源人工智能研究院（BAAI）开源的<strong>多模态大一统模型</strong> Emu3，核心思想是把<strong>图像 / 视频 / 文本全部离散化为 token</strong>，在一个 LLaMA 风格的 decoder-only transformer 上<strong>仅用 next-token prediction</strong> 做统一训练。本文基于 <code>/data/sd/Emu3</code> 源码，从模型实现到训练框架逐层拆解，重点对齐 Pi-0.5 页面的<strong>代码级逐步分析粒度</strong>——每个关键点都给出真实源码片段 + 逐行解释 + 文件路径。
       </p>

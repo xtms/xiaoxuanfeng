@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function MooncakeKVPoolPage() {
   return (
     <div className="prose max-w-none">
-      <h1>Mooncake KVPool</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 25 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · KV Pool · Mooncake · Ascend</span>
-      </div>
+      <PageHeader
+        title="Mooncake KVPool"
+        date="更新于 2026-08"
+        readingTime="阅读约 25 分钟"
+        tags={['专题', 'KV Pool', 'Mooncake', 'Ascend']}
+      />
       <p>Mooncake KVPool 是 Mooncake（月之暗面/Kimi）在 Ascend 平台上的<strong>分布式 KV Cache 池化方案</strong>，由 HIXL（Huawei Interconnect Acceleration Library）提供底层传输引擎。本文基于 <strong>HIXL + Mooncake</strong> 的 Ascend 适配实现，分析其架构、传输机制、API 和部署方案。</p>
 
       {/* ==================== 1. 总体架构 ==================== */}

@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { CodeBlock, Callout, ExternalLink, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function VLLMArchPage() {
   return (
     <div className="prose max-w-none">
-      <h1>vLLM 架构快速入门</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 20 分钟</span>
-        <span className="page-meta-item">🏷️ 入门 · 架构 · 概念</span>
-      </div>
+      <PageHeader
+        title="vLLM 架构快速入门"
+        date="更新于 2026-08"
+        readingTime="阅读约 20 分钟"
+        tags={['入门', '架构', '概念']}
+      />
       <p>
         本文是 vLLM 框架的<strong>架构入门指南</strong>，面向想快速理解 vLLM 整体设计的读者。
         参考 <a href="https://zhuanlan.zhihu.com/p/1984742841528902530" target="_blank" rel="noreferrer">vLLM(一)：vLLM框架快速入门引导</a>，

@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/vllm-project/router/blob/main';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function VllmRouterPage() {
   return (
     <div className="prose max-w-none">
-      <h1>vLLM Router — vllm-project/router 调度网关</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 40 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 调度器</span>
-      </div>
+      <PageHeader
+        title="vLLM Router — vllm-project/router 调度网关"
+        date="更新于 2026-09"
+        readingTime="阅读约 40 分钟"
+        tags={['专题', '调度器']}
+      />
       <p>
         深入分析 <code>vllm-project/router</code>（Rust 纯代码调度网关，~36K 行），它是 SGLang Model Gateway 的官方 fork，为 vLLM 后端做了深度适配：两阶段 Prefill/Decode 路由、NIXL / Mooncake / MoRI-IO 三种 KV Connector、ZMQ 服务发现、OpenTelemetry 可观测性。本节按 <strong>Pi-0.5 粒度</strong>逐步分析——每个关键点附真实源码 + 逐行解释 + 可点击跳转 GitHub 的文件路径。
       </p>

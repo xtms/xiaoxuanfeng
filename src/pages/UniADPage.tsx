@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/OpenDriveLab/UniAD/blob/v2.0';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function UniADPage() {
   return (
     <div className="prose max-w-none">
-      <h1>UniAD — 训练框架实现架构分析</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">🏷️ 自动驾驶 · 端到端 · 六大任务 · BEVFormer · CVPR 2023</span>
-        <span className="page-meta-item">📖 源码分析</span>
-      </div>
+      <PageHeader
+        title="UniAD — 训练框架实现架构分析"
+        date="更新于 2026-09"
+        tags={['自动驾驶', '端到端', '六大任务', 'BEVFormer', 'CVPR 2023']}
+        extra={[{ icon: '📖', text: '源码分析' }]}
+      />
       <p>
         OpenDriveLab 开源的 <strong>UniAD（Planning-oriented Autonomous Driving）</strong>，CVPR 2023 最佳论文。它是首个将<strong>跟踪、建图、运动预测、占据预测、规划</strong>五大任务统一进一个端到端 Transformer 框架的系统，靠一组<strong>贯穿全流程的 Query</strong> 串起感知→预测→规划。本文基于 <code>/data/sd/UniAD</code>（v2.0 分支）源码，按 Pi-0.5 页面粒度给出<strong>代码级逐步分析</strong>——每个关键点附真实源码 + 逐行解释 + 文件路径。
       </p>

@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH_VLLM = 'https://github.com/vllm-project/vllm/blob/main';
 const GH_SGLANG = 'https://github.com/sgl-project/sglang/blob/main';
@@ -16,12 +17,12 @@ function SrcLink({ gh, path }: { gh: 'vllm' | 'sglang'; path: string }) {
 export function ServingSchedulerPage() {
   return (
     <div className="prose max-w-none">
-      <h1>服务调度概览 — vLLM 与 SGLang 调度模块对照分析</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 35 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 调度系统</span>
-      </div>
+      <PageHeader
+        title="服务调度概览 — vLLM 与 SGLang 调度模块对照分析"
+        date="更新于 2026-09"
+        readingTime="阅读约 35 分钟"
+        tags={['专题', '调度系统']}
+      />
       <p>
         调度器是 LLM 推理引擎的<strong>决策中枢</strong>——它决定每一轮 forward pass 跑哪些请求、每个请求算多少 token、KV Cache 怎么分配。
         本概览页在「<a href="/vllm-scheduler">vLLM V1 调度模块</a>」与「<a href="/sglang-scheduler">SGLang 调度模块</a>」两篇 Pi-0.5 源码深挖的基础上，

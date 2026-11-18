@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function PDSeparationPage() {
   return (
     <div className="prose max-w-none">
-      <h1>P/D 分离 (Prefill/Decode Disaggregation)</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 20 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 架构设计</span>
-      </div>
+      <PageHeader
+        title="P/D 分离 (Prefill/Decode Disaggregation)"
+        date="更新于 2026-08"
+        readingTime="阅读约 20 分钟"
+        tags={['专题', '架构设计']}
+      />
       <p>Prefill/Decode 分离（简称 P/D 分离）是 LLM 推理架构的重要演进方向。它将计算特性截然不同的 Prefill 和 Decode 阶段拆分到独立的 GPU 集群，实现资源专用化和利用率最大化。</p>
 
       {/* ==================== 1. 为什么需要分离 ==================== */}

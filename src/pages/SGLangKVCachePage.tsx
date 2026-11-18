@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function SGLangKVCachePage() {
   return (
     <div className="prose max-w-none">
-      <h1>SGLang KV Cache 机制</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 25 分钟</span>
-        <span className="page-meta-item">🏷️ SGLang · KV Cache · P/D 分离</span>
-      </div>
+      <PageHeader
+        title="SGLang KV Cache 机制"
+        date="更新于 2026-09"
+        readingTime="阅读约 25 分钟"
+        tags={['SGLang', 'KV Cache', 'P/D 分离']}
+      />
       <p>
         SGLang 的 KV Cache 机制由 <strong>Radix Tree 前缀缓存</strong>、<strong>P/D 分离传输协议</strong>、
         <strong>HiCache 分层存储</strong> 三大支柱构成。其中 P/D 分离场景下的 KV 传输安全机制是其最精妙的设计之一。

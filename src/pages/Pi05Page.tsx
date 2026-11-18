@@ -1,3 +1,4 @@
+import { PageHeader } from '../components/PageHeader';
 // Pi-0.5 适配涉及两个上游仓库：LeRobot（src/lerobot/...）与 OpenPI（src/openpi/...）
 const LEROBOT_GH = 'https://github.com/huggingface/lerobot/blob/main';
 const OPENPI_GH = 'https://github.com/physical-intelligence/openpi/blob/main';
@@ -81,11 +82,11 @@ export function Pi05Page() {
       `}</style>
 
       <div className="prose max-w-none pi05-container">
-        <h1>Pi-0.5 NPU 适配 — 架构可视化</h1>
-        <div className="page-meta">
-          <span className="page-meta-item">📅 更新于 2026-09</span>
-          <span className="page-meta-item">🏷️ 自动驾驶 · VLA · Pi-0.5 · NPU 适配</span>
-        </div>
+        <PageHeader
+          title="Pi-0.5 NPU 适配 — 架构可视化"
+          date="更新于 2026-09"
+          tags={['自动驾驶', 'VLA', 'Pi-0.5', 'NPU 适配']}
+        />
         <p style={{ color: 'var(--vp-c-text-2)', fontSize: '0.95rem', marginBottom: 8 }}>
           基于 DrivingSDK model_examples/Pi-0.5 源码分析
         </p>

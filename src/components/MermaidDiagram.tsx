@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useId } from 'react';
 
 interface Props {
   chart: string;
@@ -40,18 +40,41 @@ async function loadMermaid() {
 export function MermaidDiagram({ chart, className, maxWidth, scale: scaleProp }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgWrapperRef = useRef<HTMLDivElement>(null);
-  const id = useRef(`mermaid-${Math.random().toString(36).slice(2)}`);
+  // 用 useId 替代 Math.random()（渲染期纯度），生成对 CSS/选择器安全的唯一 id
+  const id = useRef(`mermaid-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`);
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  // 是否已进入视口（懒渲染）：只有进入视口才开始加载并渲染图表
+  const [inView, setInView] = useState(false);
   // 静态缩小：将 SVG 宽度直接设为 baseW×scale（mermaid 的 SVG width 属性是 "100%"，
   // 真实像素尺寸在 viewBox 里，故先用 100% 布局宽度作基准）
   const [shrunk, setShrunk] = useState(false);
 
-  useEffect(() => {
+  // 懒渲染：初始视口内立即渲染；滚动/缩放时对即将进入视口（预留 300px）的图渲染。
+  // 相比纯 IntersectionObserver，还能覆盖瞬间跳转（Ctrl+End / URL 锚点跳页）时
+  // 未渲染容器被直接跳过的场景。
+  const maybeRender = useCallback(() => {
     if (!containerRef.current) return;
+    if (containerRef.current.getBoundingClientRect().top < window.innerHeight + 300) {
+      setInView(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    maybeRender();
+    window.addEventListener('scroll', maybeRender, { passive: true });
+    window.addEventListener('resize', maybeRender, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', maybeRender);
+      window.removeEventListener('resize', maybeRender);
+    };
+  }, [maybeRender]);
+
+  useEffect(() => {
+    if (!inView || !containerRef.current) return;
     let cancelled = false;
 
     setLoading(true);
@@ -99,7 +122,7 @@ export function MermaidDiagram({ chart, className, maxWidth, scale: scaleProp }:
     });
 
     return () => { cancelled = true; };
-  }, [chart, scaleProp]);
+  }, [chart, scaleProp, inView]);
 
   const applyTransform = useCallback(() => {
     if (!svgWrapperRef.current) return;

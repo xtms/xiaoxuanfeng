@@ -1,15 +1,16 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function KVPoolPage() {
   return (
     <div className="prose max-w-none">
-      <h1>KV Pool</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 35 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · 缓存池化</span>
-      </div>
+      <PageHeader
+        title="KV Pool"
+        date="更新于 2026-08"
+        readingTime="阅读约 35 分钟"
+        tags={['专题', '缓存池化']}
+      />
       <p>KV Pool 是将 KV Cache 从<strong>单请求独占</strong>升级为<strong>跨请求/跨节点共享</strong>的缓存池化技术。通过中心化存储、分布式传输和智能淘汰，实现 KV Cache 的高效复用，降低重复计算和显存浪费。</p>
 
       {/* ==================== 1. 概念与动机 ==================== */}

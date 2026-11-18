@@ -1,14 +1,15 @@
 import { ExternalLink, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 export function InfraTechPage() {
   return (
     <div className="prose max-w-none">
-      <h1>InfraTech</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-08</span>
-        <span className="page-meta-item">⏱️ 阅读约 10 分钟</span>
-        <span className="page-meta-item">🏷️ AI Infra · Notebook · 资料</span>
-      </div>
+      <PageHeader
+        title="InfraTech"
+        date="更新于 2026-08"
+        readingTime="阅读约 10 分钟"
+        tags={['AI Infra', 'Notebook', '资料']}
+      />
       <p>
         本仓库主要介绍 AI Infra 领域相关知识，内容涵盖：<strong>训练/推理框架🧩、性能加速🚀、深度学习🧠、基础硬件🔧</strong>等。
       </p>

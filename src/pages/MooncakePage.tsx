@@ -1,5 +1,6 @@
 import { MermaidDiagram } from '../components/MermaidDiagram';
 import { Callout, CodeBlock, ResourceTable } from '../components/CodeBlock';
+import { PageHeader } from '../components/PageHeader';
 
 const GH = 'https://github.com/kvcache-ai/Mooncake/blob/main';
 
@@ -14,12 +15,12 @@ function SrcLink({ path }: { path: string }) {
 export function MooncakePage() {
   return (
     <div className="prose max-w-none">
-      <h1>Mooncake — KVCache-Centric 分离式推理的缓存池化与 P/D 同步</h1>
-      <div className="page-meta">
-        <span className="page-meta-item">📅 更新于 2026-09</span>
-        <span className="page-meta-item">⏱️ 阅读约 55 分钟</span>
-        <span className="page-meta-item">🏷️ 专题 · Mooncake · KV Pool · P/D 分离</span>
-      </div>
+      <PageHeader
+        title="Mooncake — KVCache-Centric 分离式推理的缓存池化与 P/D 同步"
+        date="更新于 2026-09"
+        readingTime="阅读约 55 分钟"
+        tags={['专题', 'Mooncake', 'KV Pool', 'P/D 分离']}
+      />
       <p>
         深入分析 <code>kvcache-ai/Mooncake</code>（FAST 2025 最佳论文）的实现机制，按 <strong>Pi-0.5 粒度</strong>拆解三大核心：
         <strong>缓存池化</strong>（Segment + 双分配器 + 分配策略 + 两阶段 Put/Get）、<strong>缓存管理</strong>（水位驱逐 + 并行普查 + 软/硬钉保护 + 租约）、
